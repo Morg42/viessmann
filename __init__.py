@@ -390,6 +390,7 @@ class Viessmann(SmartPlugin):
         Disconnect any connected devices.
         '''
         self._connected = False
+        self._initialized = False
         if self.scheduler_get('cyclic'):
             self.scheduler_remove('cyclic')
         try:
@@ -695,6 +696,9 @@ class Viessmann(SmartPlugin):
                     if len(chunk) != 0:
                         if chunk[:1] == self._int2bytes(self._controlset['Error'], 1):
                             self.logger.error('Interface returned error! response was: {}'.format(chunk))
+                        elif len(chunk) == 1 and chunk[:1] == self._int2bytes(self._controlset['Not_initiated'], 1):
+                            self.logger.error('Received invalid chunk, connection not initialized. Forcing re-initialize...')
+                            self._initialized = False
                         elif chunk[:1] != self._int2bytes(self._controlset['Acknowledge'], 1):
                             self.logger.error('Received invalid chunk, not starting with ACK! response was: {}'.format(chunk))
                         else:
@@ -775,6 +779,7 @@ class Viessmann(SmartPlugin):
 
             # just in case, force plugin to reconnect
             self._connected = False
+            self._initialized = False
 
         # return what we got so far, might be 0
         return totalreadbytes
