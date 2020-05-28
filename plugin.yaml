@@ -1,0 +1,154 @@
+# Metadata for the Smart-Plugin
+plugin:
+    # Global plugin attributes
+    type: interface                # plugin type (gateway, interface, protocol, system, web)
+    description:
+        de: 'Lesen und Schreiben von Werten einer Viessmann Heizung'
+        en: 'Read and write data of a Viessmann heating system'
+    maintainer: Michael Wenzel
+    tester: Morg
+    #keywords: viessmann optolink
+    state: ready                   # change to ready when done with development
+
+    version: 1.7.1                 # Plugin version
+    sh_minversion: 1.6.0           # minimum shNG version to use this plugin
+#    sh_maxversion:                # maximum shNG version to use this plugin (leave empty if latest)
+    multi_instance: false          # plugin supports multi instance
+    restartable: unknown
+    classname: Viessmann           # class containing the plugin
+
+parameters:
+    # Definition of parameters to be configured in etc/plugin.yaml
+    serialport:
+        type: str
+        default: ''
+        description:
+            de: 'Serieller Port an dem der Lesekopf angeschlossen'
+            en: 'serial port at which the reading_device is attached'
+
+    heating_type:
+        type: str
+        default: ''
+        description:
+            de: 'Gerätetype der Heizung'
+            en: 'Device type of heating system'
+
+    protocol:
+        type: str
+        mandatory: true
+        valid list:
+            - 'P300'
+            - 'GWG'
+            - 'KW2'
+        description:
+            de: 'Protokoll der Heizung'
+            en: 'protocol of heating system'
+
+    timeout:
+        type: num
+        default: 2
+        description:
+            de: 'Zeitbegrenzung für das Lesen vom seriellen Port in Sekunden'
+            en: 'Timeout for serial read operations in seconds'
+
+item_attributes:
+    # Definition of item attributes defined by this plugin
+    viess_send:
+        type: str
+        description:
+            de: 'Änderung des Items wird mit konfiguriertem Kommando an die Heizung geschickt.'
+            en: 'Changes to this item result in sending the configured command to the heating system.'
+
+    viess_read:
+        type: str
+        description:
+            de: 'Liest Wert mit konfiguriertem Kommando aus der Heizung aus.'
+            en: 'The item value should be read by using the configured command.'
+
+    viess_read_afterwrite:
+        type: num
+        description:
+            de: 'Konfiguriert eine Verzögerung in Sekunden nachdem ein Lesekommando nach einem Schreibkommando an die Heizung geschickt wird.'
+            en: 'Configures delay in seconds to issue a read command after write command.'
+
+    viess_read_cycle:
+        type: num
+        description:
+            de: 'Konfiguriert ein Intervall in Sekunden für das Lesekommando.'
+            en: 'Configures a interval in seconds for the read command.'
+
+    viess_init:
+        type: bool
+        description:
+            de: 'Konfiguriert, ob der Wert aus der Heizung initialisiert werden soll.'
+            en: 'Configures to initialize the item value with the value from the KWL system.'
+
+    viess_trigger:
+        type: list(str)
+        description:
+            de: 'Konfiguriert Lesekommandos, die nach einem Schreibvorgang auf das Item aufgerufen werden.'
+            en: 'Configures read commands after an update to the item.'
+
+    viess_trigger_afterwrite:
+        type: num
+        description:
+            de: 'Konfiguriert eine Verzögerung in Sekunden, bis ein Trigger ausgeführt werden soll, nachdem ein Wert gesetzt wurde.'
+            en: 'Configures delay in seconds to run trigger commands after item update.'
+
+item_structs:
+    timer:
+        name: Schaltzeiten in Einzelzeiten fuer An und Aus
+
+        an1:
+            name: erste Anschaltzeit
+            type: str
+            visu_acl: rw
+
+        aus1:
+            name: erste Ausschaltzeit
+            type: str
+            visu_acl: rw
+
+        an2:
+            name: zweite Anschaltzeit
+            type: str
+            visu_acl: rw
+
+        aus2:
+            name: zweite Ausschaltzeit
+            type: str
+            visu_acl: rw
+
+        an3:
+            name: dritte Anschaltzeit
+            type: str
+            visu_acl: rw
+
+        aus3:
+            name: dritte Ausschaltzeit
+            type: str
+            visu_acl: rw
+
+        an4:
+            name: vierte Anschaltzeit
+            type: str
+            visu_acl: rw
+
+        aus4:
+            name: vierte Ausschaltzeit
+            type: str
+            visu_acl: rw
+
+    betriebsart:
+        name: Betriebsart in string wandeln
+
+        betriebsart_str:
+            type: str
+            eval: "['Standby', 'Warmwasser (Schaltzeiten)', 'Heizen und Warmwasser (Schaltzeiten)', 'reduziert Heizen (dauernd)', 'normal Heizen (dauernd)'][int(value)]"
+            eval_trigger: ..
+
+logic_parameters: NONE
+# Definition of logic parameters defined by this plugin
+
+plugin_functions: NONE
+# Definition of plugin functions defined by this plugin
