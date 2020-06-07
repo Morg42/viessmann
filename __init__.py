@@ -409,6 +409,8 @@ class Viessmann(SmartPlugin):
         '''
 
         if not self._connect():
+
+            self.logger.error('Init communication not possible as connect failed.')
             return False
 
         # Merker: Wurde der Initialisierungsstring b'\x16\x00\x00' gesendet. Wird hierauf dann mit b'\x06' geantwortet ist die Komunikation aufgebaut.
@@ -674,6 +676,10 @@ class Viessmann(SmartPlugin):
         try:
             self._lock.acquire()
             if not self._initialized or (time.time() - 500) > self._lastbytetime:
+                if self._initialized:
+                    self.logger.info('Communication timed out, trying to reestablish communication.')
+                else:
+                    self.logger.warning('Communication no longer initialized, trying to reestablish.')
                 self._init_communication()
 
             if self._initialized:
