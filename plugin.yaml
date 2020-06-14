@@ -144,7 +144,7 @@ item_structs:
 
         betriebsart_str:
             type: str
-            eval: "['Standby', 'Warmwasser (Schaltzeiten)', 'Heizen und Warmwasser (Schaltzeiten)', 'reduziert Heizen (dauernd)', 'normal Heizen (dauernd)'][int(value)]"
+            eval: "'Neustart' if value == '' else ['Standby', 'Warmwasser (Schaltzeiten)', 'Heizen und Warmwasser (Schaltzeiten)', 'reduziert Heizen (dauernd)', 'normal Heizen (dauernd)'][int(value)]"
             eval_trigger: ..
 
 logic_parameters: NONE
