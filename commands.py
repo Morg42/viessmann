@@ -43,13 +43,13 @@ controlset = {
         # init:              send'Reset_Command' receive'Reset_Command_Response' send'Sync_Command'
         # request:           send('StartByte' 'Länge der Nutzdaten als Anzahl der Bytes zwischen diesem Byte und der Prüfsumme' 'Request' 'Read' 'addr' 'checksum')
         # request_response:  receive('Acknowledge' 'StartByte' 'Länge der Nutzdaten als Anzahl der Bytes zwischen diesem Byte und der Prüfsumme' 'Response' 'Read' 'addr' 'Anzahl der Bytes des Wertes' 'Wert' 'checksum')
-},
+    },
     'KW': {
         'StartByte': 0x01,
         'Read': 0xF7,
         'Write': 0xF4,
         'Acknowledge': 0x05,
-},
+    },
 
 }
 
@@ -218,7 +218,7 @@ commandset = {
         'Timer_Zirku_Fr':      {'addr': '2220', 'len': 8, 'unit': 'CT',  'set': True},    # Timer Zirkulationspumpe Freitag
         'Timer_Zirku_Sa':      {'addr': '2228', 'len': 8, 'unit': 'CT',  'set': True},    # Timer Zirkulationspumpe Samstag
         'Timer_Zirku_So':      {'addr': '2230', 'len': 8, 'unit': 'CT',  'set': True},    # Timer Zirkulationspumpe Sonntag
-},
+    },
     'V200WO1C': {
         # generelle Infos
         'Anlagentyp':               {'addr': '00F8', 'len': 2, 'unit': 'DT',      'set': False},      # getAnlTyp -- Information - Allgemein: Anlagentyp (204D)
@@ -275,8 +275,7 @@ commandset = {
         'SollLeistungVerdichter':   {'addr': '5030', 'len': 1, 'unit': 'IUNON',   'set': False},      # getPwrSollVerdichter -- Diagnose - Anlagenuebersicht: Soll-Leistung Verdichter 1 (0..100)
         'WaermeWW12M':              {'addr': '1660', 'len': 4, 'unit': 'IU10',    'set': False},      # Wärmeenergie für WW-Bereitung der letzten 12 Monate (kWh)
         'ElektroWW12M':             {'addr': '1670', 'len': 4, 'unit': 'IU10',    'set': False},      # elektr. Energie für WW-Bereitung der letzten 12 Monate (kWh)
-
-},
+    },
 }
 
 unitset = {
@@ -302,7 +301,7 @@ unitset = {
         'SR':      {'unit_de': 'SetReturnStatus',   'type': 'list',     'signed': False, 'read_value_transform': 'non'},        # vito unit: 
         'TI':      {'unit_de': 'SystemTime',        'type': 'datetime', 'signed': False, 'read_value_transform': 'non'},        # vito unit: TI
         'DA':      {'unit_de': 'Date',              'type': 'date',     'signed': False, 'read_value_transform': 'non'},        # vito unit: 
-}
+    }
 }
 
 errorset = {
@@ -372,7 +371,7 @@ errorset = {
         'FD': 'Fehler Gasfeuerungsautomat',
         'FE': 'Starkes Stoerfeld (EMV) in der Naehe oder Elektronik defekt',
         'FF': 'Starkes Stoerfeld (EMV) in der Naehe oder interner Fehler'
-},
+    },
 }
 
 operatingmodes = {
@@ -382,7 +381,7 @@ operatingmodes = {
         '2': 'Heiz- und Warmwasserbetrieb',
         '4': 'Dauerbetrieb, reduziert',
         '5': 'Dauerbetrieb, normal',
-},
+    },
     'V200KO1B': {
         '00': 'Warmwasser (Schaltzeiten)',
         '01': 'reduziert Heizen (dauernd)',
@@ -390,13 +389,13 @@ operatingmodes = {
         '04': 'Heizen und Warmwasser (FS)',
         '03': 'Heizen und Warmwasser (Schaltzeiten)',
         '05': 'Standby',
-},
+    },
     'aktuelle_Betriebsart': {
         '00': 'Abschaltbetrieb',
         '01': 'Reduzierter Betrieb',
         '02': 'Normalbetrieb',
         '03': 'Dauernd Normalbetrieb',
-},
+    },
     'V200WO1C': {
         '00': 'Abschaltbetrieb',
         '01': 'Warmwasser',
@@ -406,7 +405,7 @@ operatingmodes = {
         '05': 'dauernd normal',
         '06': 'normal Abschalt',
         '07': 'nur kühlen'
-}
+    }
 }
 
 systemschemes = {
@@ -417,13 +416,13 @@ systemschemes = {
         '03': 'M2 + WW',
         '05': 'A1 + M2',
         '06': 'A1 + M2 + WW'
-},
+    },
     'V200WO1C': {
         '01': 'WW',
         '02': 'HK + WW',
         '04': 'HK + WW',
         '05': 'HK + WW'
-}
+    }
 }
 
 devicetypes = {
@@ -443,7 +442,7 @@ devicetypes = {
     '2049': 'V200WO1,VBC700, Protokoll: ',
     '2032': 'VBC550, Protokoll: ',
     '2033': 'VBC550, Protokoll: '
-}
+    }
 
 returnstatus = {
     'P300': {
@@ -452,14 +451,14 @@ returnstatus = {
         '03': '2',
         'AA': 'NOT OK',
         # At least for device 20CB the heating circuit pump returns status 03 when it's on and the heating runs in in night mode
-},
+    },
 }
 
 setreturnstatus = {
     'P300': {
         '00': 'OK',
         '05': 'SYNC (NOT OK)',
-},
+    },
 }
 
 # P300 Protokoll
