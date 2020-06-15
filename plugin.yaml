@@ -10,7 +10,7 @@ plugin:
     #keywords: viessmann optolink
     state: ready                   # change to ready when done with development
 
-    version: 1.7.1                 # Plugin version
+    version: 1.0.0                 # Plugin version
     sh_minversion: 1.6.0           # minimum shNG version to use this plugin
 #    sh_maxversion:                # maximum shNG version to use this plugin (leave empty if latest)
     multi_instance: false          # plugin supports multi instance
