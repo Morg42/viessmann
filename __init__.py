@@ -135,7 +135,6 @@ class Viessmann(SmartPlugin):
         self.alive = True
         self._read_initial_values()
         self._read_timers()
-        self._create_cyclic_scheduler()
 
     def stop(self):
         '''
@@ -373,6 +372,9 @@ class Viessmann(SmartPlugin):
             self._connected = True
             self.logger.info('Connected to {}'.format(self._serialport))
             self._connection_attempts = 0
+
+            if not self.scheduler_get('cyclic'):
+                self._create_cyclic_scheduler()
             return True
         except Exception as e:
             self.logger.error('Could not _connect to {}; Error: {}'.format(self._serialport, e))
