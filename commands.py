@@ -109,6 +109,13 @@ commandset = {
         'Brennerstatus_2':              {'addr': '0849', 'len': 1, 'unit': 'IUBOOL', 'set': False},    # Brennerstatus Stufe2
         'Oeldurchsatz':                 {'addr': '5726', 'len': 4, 'unit': 'ISNON',  'set': True, 'min_value': 0, 'max_value': 1193045},    # Oeldurchsatz Brenner in Dezi-Liter pro Stunde
         'Oelverbrauch':                 {'addr': '7574', 'len': 4, 'unit': 'IS1000', 'set': True},    # Oelverbrauch kumuliert
+        #Solar
+        'Nachladeunterdrueckung':                     {'addr': '6551', 'len': 1, 'unit': 'IUBOOL', 'set': False},    
+        'SolarPumpe':                                 {'addr': '6552', 'len': 1, 'unit': 'IUBOOL', 'set': False},    
+        'Kollektortemperatur':                        {'addr': '6564', 'len': 2, 'unit': 'IS10',   'set': False},    
+        'Speichertemperatur':                         {'addr': '6566', 'len': 2, 'unit': 'IU10',   'set': False},    
+        'Solar_Betriebsstunden':                      {'addr': '6568', 'len': 4, 'unit': 'IU100', 'set': False},    
+        'Solarsteuerung':                             {'addr': '7754', 'len': 2, 'unit': 'IUINT',   'set': False},    
         # Heizkreis A1M1
         'Raumtemperatur_A1M1':                        {'addr': '0896', 'len': 1, 'unit': 'ISNON',  'set': False},    # Raumtemperatur A1M1
         'Raumtemperatur_Soll_Normalbetrieb_A1M1':     {'addr': '2306', 'len': 1, 'unit': 'ISNON',  'set': True, 'min_value': 3, 'max_value': 37},    # Raumtemperatur Soll Normalbetrieb A1M1
@@ -286,6 +293,7 @@ unitset = {
         'ES':      {'unit_de': 'ErrorState',        'type': 'list',     'signed': False, 'read_value_transform': 'non'},        # vito unit: ES
         'IU2':     {'unit_de': 'INT unsigned 2',    'type': 'integer',  'signed': False, 'read_value_transform': '2'},          # vito unit: UT1U, PR1
         'IU10':    {'unit_de': 'INT unsigned 10',   'type': 'integer',  'signed': False, 'read_value_transform': '10'},         # vito unit: 
+        'IU100':   {'unit_de': 'INT unsigned 100',  'type': 'integer',  'signed': False, 'read_value_transform': '100'},        # vito unit: 
         'IU3600':  {'unit_de': 'INT unsigned 3600', 'type': 'integer',  'signed': False, 'read_value_transform': '3600'},       # vito unit: CS
         'IUBOOL':  {'unit_de': 'INT unsigned bool', 'type': 'integer',  'signed': False, 'read_value_transform': 'bool'},       # vito unit: 
         'IUINT':   {'unit_de': 'INT unsigned int',  'type': 'integer',  'signed': False, 'read_value_transform': 'int'},        # vito unit: 
