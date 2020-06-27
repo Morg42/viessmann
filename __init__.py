@@ -44,8 +44,7 @@ class Viessmann(SmartPlugin):
     '''
     ALLOW_MULTIINSTANCE = False
 
-# TODO: für Release auf 1.0.0 setzen
-    PLUGIN_VERSION = '1.7.1'
+    PLUGIN_VERSION = '1.0.0'
 
     #
     # public methods
@@ -136,7 +135,6 @@ class Viessmann(SmartPlugin):
         self.alive = True
         self._read_initial_values()
         self._read_timers()
-        self._create_cyclic_scheduler()
 
     def stop(self):
         '''
@@ -187,8 +185,6 @@ class Viessmann(SmartPlugin):
                         self._timer_cmds.append(commandcode)
             self._timer_cmds.sort()
             self.logger.debug('Loaded Timer commands \'{}\''.format(self._timer_cmds))
-# TODO: remove comment if development is done
-            # self._timer_cmds: ['2100', '2108', '2110', '2118', '2120', '2128', '2130', '3000', '3008', '3010', '3018', '3020', '3028', '3030']
             return self.update_item
 
         # Process the read config
@@ -304,8 +300,6 @@ class Viessmann(SmartPlugin):
                 timer_app = self.get_iattr_value(item.conf, 'viess_timer')
                 uzsu_dict = item()
                 self.logger.debug('Got changed UZSU timer: {} on timer application {}.'.format(uzsu_dict, timer_app))
-# TODO: remove comment if development is done
-                # uzsu_dict: {'sunrise': '05:24', 'active': True, 'lastvalue': '0', 'interpolation': {'type': 'none', 'itemtype': 'bool', 'initage': '20', 'interval': '', 'initialized': True}, 'sunset': '20:58', 'list': [{'active': True, 'rrule': 'FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR,SA,SU', 'time': '04:10', 'value': '1'}, {'active': True, 'rrule': 'FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR,SA,SU', 'time': '04:40', 'value': '0'}, {'active': True, 'rrule': 'FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR,SA,SU', 'time': '16:30', 'value': '1'}, {'active': True, 'rrule': 'FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR,SA,SU', 'time': '17:10', 'value': '0'}]} on timer application Timer_Warmwasser.
                 self._uzsu_dict_to_viess_timer(timer_app, uzsu_dict)
 
             elif self.has_iattr(item.conf, 'viess_update'):
@@ -378,6 +372,9 @@ class Viessmann(SmartPlugin):
             self._connected = True
             self.logger.info('Connected to {}'.format(self._serialport))
             self._connection_attempts = 0
+
+            if not self.scheduler_get('cyclic'):
+                self._create_cyclic_scheduler()
             return True
         except Exception as e:
             self.logger.error('Could not _connect to {}; Error: {}'.format(self._serialport, e))
@@ -390,6 +387,7 @@ class Viessmann(SmartPlugin):
         Disconnect any connected devices.
         '''
         self._connected = False
+        self._initialized = False
         if self.scheduler_get('cyclic'):
             self.scheduler_remove('cyclic')
         try:
@@ -407,22 +405,28 @@ class Viessmann(SmartPlugin):
         :rtype: bool
         '''
 
+        # just try to connect anyway; if connected, this does nothing and no harm, if not, it connects
         if not self._connect():
+
+            self.logger.error('Init communication not possible as connect failed.')
             return False
 
-        # Merker: Wurde der Initialisierungsstring b'\x16\x00\x00' gesendet. Wird hierauf dann mit b'\x06' geantwortet ist die Komunikation aufgebaut.
+        # if device answers SYNC b'\x16\x00\x00' with b'\x06', comm is initialized
         self.logger.info('Init Communication....')
         is_initialized = False
         initstringsent = False
+        self.logger.debug('send_bytes: Send reset command {}'.format(self._int2bytes(self._controlset['Reset_Command'], 1)))
         self._send_bytes(self._int2bytes(self._controlset['Reset_Command'], 1))
         readbyte = self._read_bytes(1)
+        self.logger.debug('read_bytes: read {}, last byte is {}'.format(readbyte, self._lastbyte))
 
         for i in range(0, 10):
-            if initstringsent and (self._lastbyte == self._int2bytes(self._controlset['Acknowledge'], 1)):
+            if initstringsent and self._lastbyte == self._int2bytes(self._controlset['Acknowledge'], 1):
                 # Schnittstelle hat auf den Initialisierungsstring mit OK geantwortet. Die Abfrage von Werten kann beginnen. Diese Funktion meldet hierzu True zurück.
                 is_initialized = True
+                self.logger.debug('Device acknowledged initialization')
                 break
-            if self._lastbyte == self._int2bytes(self._controlset['Acknowledge'], 1) or self._lastbyte == self._int2bytes(self._controlset['Not_initiated'], 1):
+            if self._lastbyte == self._int2bytes(self._controlset['Not_initiated'], 1):
                 # Schnittstelle ist zurückgesetzt und wartet auf Daten; Antwort b'\x05' = Warten auf Initialisierungsstring oder Antwort b'\x06' = Schnittstelle initialisiert
                 self._send_bytes(self._int2bytes(self._controlset['Sync_Command'], 3))
                 self.logger.debug('send_bytes: Send sync command {}'.format(self._int2bytes(self._controlset['Sync_Command'], 3)))
@@ -437,7 +441,7 @@ class Viessmann(SmartPlugin):
                 self.logger.debug('send_bytes: Send reset command {}'.format(self._int2bytes(self._controlset['Reset_Command'], 1)))
                 initstringsent = False
             readbyte = self._read_bytes(1)
-            self.logger.debug('read_bytes: Read {}'.format(readbyte))
+            self.logger.debug('read_bytes: read {}, last byte is {}'.format(readbyte, self._lastbyte))
 
         self.logger.info('Communication initialized: {}'.format(is_initialized))
         self._initialized = is_initialized
@@ -673,6 +677,10 @@ class Viessmann(SmartPlugin):
         try:
             self._lock.acquire()
             if not self._initialized or (time.time() - 500) > self._lastbytetime:
+                if self._initialized:
+                    self.logger.info('Communication timed out, trying to reestablish communication.')
+                else:
+                    self.logger.warning('Communication no longer initialized, trying to reestablish.')
                 self._init_communication()
 
             if self._initialized:
@@ -695,6 +703,9 @@ class Viessmann(SmartPlugin):
                     if len(chunk) != 0:
                         if chunk[:1] == self._int2bytes(self._controlset['Error'], 1):
                             self.logger.error('Interface returned error! response was: {}'.format(chunk))
+                        elif len(chunk) == 1 and chunk[:1] == self._int2bytes(self._controlset['Not_initiated'], 1):
+                            self.logger.error('Received invalid chunk, connection not initialized. Forcing re-initialize...')
+                            self._initialized = False
                         elif chunk[:1] != self._int2bytes(self._controlset['Acknowledge'], 1):
                             self.logger.error('Received invalid chunk, not starting with ACK! response was: {}'.format(chunk))
                         else:
@@ -775,6 +786,7 @@ class Viessmann(SmartPlugin):
 
             # just in case, force plugin to reconnect
             self._connected = False
+            self._initialized = False
 
         # return what we got so far, might be 0
         return totalreadbytes
@@ -996,8 +1008,6 @@ class Viessmann(SmartPlugin):
                             dict_timer[application][sw_time][value].append(weekday)
 
         self.logger.debug('Viessmann timer dict for UZSU: {}.'.format(dict_timer))
-# TODO: remove comment if development is done
-        # dict_timer: {'Timer_Warmwasser': {'04:00': {1: ['SU', 'FR', 'TH', 'TU', 'SA', 'WE', 'MO']}, '17:10': {0: ['SU', 'FR', 'TH', 'TU', 'SA', 'WE', 'MO']}, '04:40': {0: ['SU', 'FR', 'TH', 'TU', 'SA', 'WE', 'MO']}, '16:30': {1: ['SU', 'FR', 'TH', 'TU', 'SA', 'WE', 'MO']}}, 'Timer_M2': {'07:00': {0: ['WE', 'FR', 'TH', 'MO', 'TU']}, '21:00': {0: ['SA', 'SU']}, '04:10': {1: ['WE', 'FR', 'TH', 'MO', 'TU']}, '20:00': {0: ['WE', 'FR', 'TH', 'MO', 'TU']}, '13:30': {1: ['WE', 'FR', 'TH', 'MO', 'TU']}, '04:40': {1: ['SA', 'SU']}}}
 
         # find items, read UZSU-dict, convert to list of switching times, update item
         for application in dict_timer:
@@ -1044,13 +1054,9 @@ class Viessmann(SmartPlugin):
 
             commandnames.update([self._commandname_by_commandcode(code) for code in self._application_timer[timer_app]['commandcodes']])
             self.logger.debug('Commandnames: {}.'.format(commandnames))
-# TODO: remove comment if development is done
-            # Commandnames: ['Timer_M2_Mo', 'Timer_M2_Di', 'Timer_M2_Mi', 'Timer_M2_Do', 'Timer_M2_Fr', 'Timer_M2_Sa', 'Timer_M2_So']
 
             # find switching times and create lists for on and off operations
             for sw_time in uzsu_dict['list']:
-# TODO: remove comment if development is done
-                # time: {'time': '22:00', 'rrule': 'FREQ=WEEKLY;BYDAY=DI,MI,DO,FR,SA,SO', 'value': 0, 'active': True}
                 myDays = sw_time['rrule'].split(';')[1].split("=")[1].split(",")
                 for day in myDays:
                     if sw_time['value'] == '1' and sw_time['active']:
@@ -1067,13 +1073,9 @@ class Viessmann(SmartPlugin):
             for day in an:
                 an[day].sort()
             self.logger.debug('An: {}.'.format(an))
-# TODO: remove comment if development is done
-            # An: {'SA': ['04:10', '16:30'], 'MO': ['04:10', '16:30'], 'TH': ['04:10', '16:30'], 'SU': ['04:10', '16:30'], 'FR': ['04:10', '16:30'], 'TU': ['04:10', '16:30'], 'WE': ['04:10', '16:30']}
             for day in aus:
                 aus[day].sort()
             self.logger.debug('Aus: {}.'.format(aus))
-# TODO: remove comment if development is done
-            # Aus: {'SA': ['04:40', '17:10'], 'MO': ['04:40', '17:10'], 'TH': ['04:40', '17:10'], 'SU': ['04:40', '17:10'], 'FR': ['04:40', '17:10'], 'TU': ['04:40', '17:10'], 'WE': ['04:40', '17:10']}
 
             # create timer dict in Viessmann format for all weekdays
             for commandname in commandnames:
@@ -1092,8 +1094,6 @@ class Viessmann(SmartPlugin):
                 for idx, val in enumerate(aus[wday]):
                     timer_dict[commandname][idx]['Aus'] = val
             self.logger.debug('Timer-dict for update of items: {}.'.format(timer_dict))
-# TODO: remove comment if development is done
-            # timer: {'Timer_Warmwasser_Mo': [{'An': '04:00', 'Aus': '04:01'}, {'An': '16:00', 'Aus': '17:01'}, {'An': '00:00', 'Aus': '00:00'}, {'An': '00:00', 'Aus': '00:00'}], 'Timer_Warmwasser_Di': [{'An': '04:10', 'Aus': '04:02'}, {'An': '16:10', 'Aus': '17:02'}, {'An': '00:00', 'Aus': '00:00'}, {'An': '00:00', 'Aus': '00:00'}], 'Timer_Warmwasser_Mi': [{'An': '04:20', 'Aus': '04:03'}, {'An': '16:20', 'Aus': '17:03'}, {'An': '00:00', 'Aus': '00:00'}, {'An': '00:00', 'Aus': '00:00'}], 'Timer_Warmwasser_Do': [{'An': '04:30', 'Aus': '04:04'}, {'An': '16:30', 'Aus': '17:04'}, {'An': '00:00', 'Aus': '00:00'}, {'An': '00:00', 'Aus': '00:00'}], 'Timer_Warmwasser_Fr': [{'An': '04:40', 'Aus': '04:05'}, {'An': '16:40', 'Aus': '17:05'}, {'An': '00:00', 'Aus': '00:00'}, {'An': '00:00', 'Aus': '00:00'}], 'Timer_Warmwasser_Sa': [{'An': '04:50', 'Aus': '04:06'}, {'An': '16:50', 'Aus': '17:06'}, {'An': '00:00', 'Aus': '00:00'}, {'An': '00:00', 'Aus': '00:00'}], 'Timer_Warmwasser_So': [{'An': '05:00', 'Aus': '04:07'}, {'An': '17:00', 'Aus': '17:07'}, {'An': '00:00', 'Aus': '00:00'}, {'An': '00:00', 'Aus': '00:00'}]}
 
             # write all timer dicts to device
             for commandname in timer_dict:
