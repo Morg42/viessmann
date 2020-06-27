@@ -43,13 +43,13 @@ controlset = {
         # init:              send'Reset_Command' receive'Reset_Command_Response' send'Sync_Command'
         # request:           send('StartByte' 'Länge der Nutzdaten als Anzahl der Bytes zwischen diesem Byte und der Prüfsumme' 'Request' 'Read' 'addr' 'checksum')
         # request_response:  receive('Acknowledge' 'StartByte' 'Länge der Nutzdaten als Anzahl der Bytes zwischen diesem Byte und der Prüfsumme' 'Response' 'Read' 'addr' 'Anzahl der Bytes des Wertes' 'Wert' 'checksum')
-},
+    },
     'KW': {
         'StartByte': 0x01,
         'Read': 0xF7,
         'Write': 0xF4,
         'Acknowledge': 0x05,
-},
+    },
 
 }
 
@@ -109,6 +109,13 @@ commandset = {
         'Brennerstatus_2':              {'addr': '0849', 'len': 1, 'unit': 'IUBOOL', 'set': False},    # Brennerstatus Stufe2
         'Oeldurchsatz':                 {'addr': '5726', 'len': 4, 'unit': 'ISNON',  'set': True, 'min_value': 0, 'max_value': 1193045},    # Oeldurchsatz Brenner in Dezi-Liter pro Stunde
         'Oelverbrauch':                 {'addr': '7574', 'len': 4, 'unit': 'IS1000', 'set': True},    # Oelverbrauch kumuliert
+        #Solar
+        'Nachladeunterdrueckung':                     {'addr': '6551', 'len': 1, 'unit': 'IUBOOL', 'set': False},    
+        'SolarPumpe':                                 {'addr': '6552', 'len': 1, 'unit': 'IUBOOL', 'set': False},    
+        'Kollektortemperatur':                        {'addr': '6564', 'len': 2, 'unit': 'IS10',   'set': False},    
+        'Speichertemperatur':                         {'addr': '6566', 'len': 2, 'unit': 'IU10',   'set': False},    
+        'Solar_Betriebsstunden':                      {'addr': '6568', 'len': 4, 'unit': 'IU100', 'set': False},    
+        'Solarsteuerung':                             {'addr': '7754', 'len': 2, 'unit': 'IUINT',   'set': False},    
         # Heizkreis A1M1
         'Raumtemperatur_A1M1':                        {'addr': '0896', 'len': 1, 'unit': 'ISNON',  'set': False},    # Raumtemperatur A1M1
         'Raumtemperatur_Soll_Normalbetrieb_A1M1':     {'addr': '2306', 'len': 1, 'unit': 'ISNON',  'set': True, 'min_value': 3, 'max_value': 37},    # Raumtemperatur Soll Normalbetrieb A1M1
@@ -218,7 +225,53 @@ commandset = {
         'Timer_Zirku_Fr':      {'addr': '2220', 'len': 8, 'unit': 'CT',  'set': True},    # Timer Zirkulationspumpe Freitag
         'Timer_Zirku_Sa':      {'addr': '2228', 'len': 8, 'unit': 'CT',  'set': True},    # Timer Zirkulationspumpe Samstag
         'Timer_Zirku_So':      {'addr': '2230', 'len': 8, 'unit': 'CT',  'set': True},    # Timer Zirkulationspumpe Sonntag
-},
+    },
+    'V200HO1C': {
+        # Allgemein
+        'Frostgefahr':                     {'addr': '2510', 'len': 1, 'unit': 'IUBOOL', 'set': False},                                         # Frostgefahr
+        'Aussentemperatur_TP':             {'addr': '5525', 'len': 2, 'unit': 'IU10',    'set': False},                                        # Aussentemperatur_tiefpass
+        'Aussentemperatur_Dp':             {'addr': '5527', 'len': 2, 'unit': 'IU10',    'set': False},                                        # Aussentemperatur in Grad C (Gedaempft)
+        'Anlagenleistung':                 {'addr': 'a3af', 'len': 2, 'unit': 'IS10',   'set': False},                                         # Anlagenleistung
+        # Kessel
+        'Kesseltemperatur_TP':             {'addr': '0810', 'len': 2, 'unit': 'IU10',    'set': False},                                        # Kesseltemperatur_tiefpass
+        'Kesselsolltemperatur':            {'addr': '555A', 'len': 2, 'unit': 'IU10',    'set': False},                                        # Kesselsolltemperatur
+        'Abgastemperatur':                 {'addr': '0816', 'len': 2, 'unit': 'IU10',    'set': False},                                        # Abgastemperatur
+        # Fehler
+        'Sammelstoerung':                  {'addr': '0a82', 'len': 1, 'unit': 'RT', 'set': False},                                             # Sammelstörung
+        'Error0':                          {'addr': '7507', 'len': 9, 'unit': 'ES', 'set': False},                                             # Fehlerhistory Eintrag 1
+        'Error1':                          {'addr': '7510', 'len': 9, 'unit': 'ES', 'set': False},                                             # Fehlerhistory Eintrag 2
+        # Pumpen
+        'Speicherladepumpe':               {'addr': '6513', 'len': 1, 'unit': 'IUBOOL', 'set': False},                                         # Speicherladepumpe für Warmwasser
+        'Zirkulationspumpe':               {'addr': '6515', 'len': 1, 'unit': 'IUBOOL', 'set': False},                                         # Zirkulationspumpe
+        'Interne_Pumpe':                   {'addr': '7660', 'len': 1, 'unit': 'IUBOOL', 'set': False},                                         # Interne Pumpe
+        'Heizkreispumpe_HK1':              {'addr': '2906', 'len': 1, 'unit': 'IUBOOL', 'set': False},                                         # Heizkreispumpe A1
+        'Heizkreispumpe_HK2':              {'addr': '3906', 'len': 1, 'unit': 'IUINT',  'set': False},                                         # Heizkreispumpe M2
+        # Brenner
+        'Brennerstarts':                   {'addr': '088a', 'len': 4, 'unit': 'ISNON',  'set': True, 'min_value': 0, 'max_value': 1193045},    # Brennerstarts
+        'Brennerleistung':                 {'addr': 'a305', 'len': 2, 'unit': 'IS10',   'set': False},                                         # Brennerleistung
+        'Brenner_Betriebsstunden':         {'addr': '08a7', 'len': 4, 'unit': 'IU3600', 'set': True, 'min_value': 0, 'max_value': 1193045},    # Brenner-Betriebsstunden
+        #Solar
+        'SolarPumpe':                      {'addr': '6552', 'len': 1, 'unit': 'IUBOOL', 'set': False},    
+        'Kollektortemperatur':             {'addr': '6564', 'len': 2, 'unit': 'IS10',   'set': False},    
+        'Speichertemperatur':              {'addr': '6566', 'len': 2, 'unit': 'IU10',   'set': False},    
+        'Solar_Betriebsstunden':           {'addr': '6568', 'len': 4, 'unit': 'IU100', 'set': False},    
+        'Solar_Waermemenge':               {'addr': '6560', 'len': 2, 'unit': 'IUINT', 'set': False},    
+        'Solar_Ausbeute':                  {'addr': 'CF30', 'len': 4, 'unit': 'IUINT', 'set': False},    
+        # Heizkreis 1
+        'Betriebsart_HK1':                 {'addr': '2500', 'len': 1, 'unit': 'IUINT',  'set': True, 'min_value': 0, 'max_value': 3},          # Betriebsart (0=Abschaltbetrieb, 1=Red. Betrieb, 2=Normalbetrieb (Schaltuhr), 3=Normalbetrieb (Dauernd))
+        'Heizart_HK1':                     {'addr': '2323', 'len': 1, 'unit': 'IUINT',  'set': True, 'min_value': 0, 'max_value': 4},          # Heizart     (0=Abschaltbetrieb, 1=Nur Warmwasser, 2=Heizen und Warmwasser, 3=Normalbetrieb (Dauernd))
+        'Vorlauftemperatur_Soll_HK1':      {'addr': '2544', 'len': 2, 'unit': 'IU10',   'set': False},                                         # Vorlauftemperatur Soll
+        'Vorlauftemperatur_HK1':           {'addr': '2900', 'len': 2, 'unit': 'IU10',   'set': False},                                         # Vorlauftemperatur Ist
+        # Heizkreis 2
+        'Betriebsart_HK2':                 {'addr': '3500', 'len': 1, 'unit': 'IUINT',  'set': True, 'min_value': 0, 'max_value': 3},          # Betriebsart (0=Abschaltbetrieb, 1=Red. Betrieb, 2=Normalbetrieb (Schaltuhr), 3=Normalbetrieb (Dauernd))
+        'Heizart_HK2':                     {'addr': '3323', 'len': 1, 'unit': 'IUINT',  'set': True, 'min_value': 0, 'max_value': 4},          # Heizart     (0=Abschaltbetrieb, 1=Nur Warmwasser, 2=Heizen und Warmwasser, 3=Normalbetrieb (Dauernd))
+        'Vorlauftemperatur_Soll_HK2':      {'addr': '3544', 'len': 2, 'unit': 'IU10',   'set': False},                                         # Vorlauftemperatur Soll
+        'Vorlauftemperatur_HK2':           {'addr': '3900', 'len': 2, 'unit': 'IU10',   'set': False},                                         # Vorlauftemperatur Ist
+        # Warmwasser
+        'Warmwasser_Temperatur':           {'addr': '0812', 'len': 2, 'unit': 'IU10',   'set': False},                                         # Warmwassertemperatur in Grad C
+        'Warmwasser_Solltemperatur':       {'addr': '6300', 'len': 1, 'unit': 'ISNON',  'set': True, 'min_value': 10, 'max_value': 95},        # Warmwasser-Solltemperatur
+        'Warmwasser_Austrittstemperatur':  {'addr': '0814', 'len': 2, 'unit': 'IU10',   'set': False},                                         # Warmwasseraustrittstemperatur in Grad C
+    },
     'V200WO1C': {
         # generelle Infos
         'Anlagentyp':               {'addr': '00F8', 'len': 2, 'unit': 'DT',      'set': False},      # getAnlTyp -- Information - Allgemein: Anlagentyp (204D)
@@ -275,8 +328,7 @@ commandset = {
         'SollLeistungVerdichter':   {'addr': '5030', 'len': 1, 'unit': 'IUNON',   'set': False},      # getPwrSollVerdichter -- Diagnose - Anlagenuebersicht: Soll-Leistung Verdichter 1 (0..100)
         'WaermeWW12M':              {'addr': '1660', 'len': 4, 'unit': 'IU10',    'set': False},      # Wärmeenergie für WW-Bereitung der letzten 12 Monate (kWh)
         'ElektroWW12M':             {'addr': '1670', 'len': 4, 'unit': 'IU10',    'set': False},      # elektr. Energie für WW-Bereitung der letzten 12 Monate (kWh)
-
-},
+    },
 }
 
 unitset = {
@@ -286,23 +338,24 @@ unitset = {
         'DT':      {'unit_de': 'DeviceType',        'type': 'list',     'signed': False, 'read_value_transform': 'non'},        # vito unit: DT
         'ES':      {'unit_de': 'ErrorState',        'type': 'list',     'signed': False, 'read_value_transform': 'non'},        # vito unit: ES
         'IU2':     {'unit_de': 'INT unsigned 2',    'type': 'integer',  'signed': False, 'read_value_transform': '2'},          # vito unit: UT1U, PR1
-        'IU10':    {'unit_de': 'INT unsigned 10',   'type': 'integer',  'signed': False, 'read_value_transform': '10'},         # vito unit: 
+        'IU10':    {'unit_de': 'INT unsigned 10',   'type': 'integer',  'signed': False, 'read_value_transform': '10'},         # vito unit:
+        'IU100':   {'unit_de': 'INT unsigned 100',  'type': 'integer',  'signed': False, 'read_value_transform': '100'},        # vito unit:
         'IU3600':  {'unit_de': 'INT unsigned 3600', 'type': 'integer',  'signed': False, 'read_value_transform': '3600'},       # vito unit: CS
-        'IUBOOL':  {'unit_de': 'INT unsigned bool', 'type': 'integer',  'signed': False, 'read_value_transform': 'bool'},       # vito unit: 
-        'IUINT':   {'unit_de': 'INT unsigned int',  'type': 'integer',  'signed': False, 'read_value_transform': 'int'},        # vito unit: 
+        'IUBOOL':  {'unit_de': 'INT unsigned bool', 'type': 'integer',  'signed': False, 'read_value_transform': 'bool'},       # vito unit:
+        'IUINT':   {'unit_de': 'INT unsigned int',  'type': 'integer',  'signed': False, 'read_value_transform': 'int'},        # vito unit:
         'IUNON':   {'unit_de': 'INT unsigned non',  'type': 'integer',  'signed': False, 'read_value_transform': 'non'},        # vito unit: UTI, CO
         'IS2':     {'unit_de': 'INT signed 2',      'type': 'integer',  'signed': True,  'read_value_transform': '2'},          # vito unit: UT1, PR
         'IS10':    {'unit_de': 'INT signed 10',     'type': 'integer',  'signed': True,  'read_value_transform': '10'},         # vito unit: UT, UN
-        'IS100':   {'unit_de': 'INT signed 100',    'type': 'integer',  'signed': True,  'read_value_transform': '100'},        # vito unit: 
-        'IS1000':  {'unit_de': 'INT signed 1000',   'type': 'integer',  'signed': True,  'read_value_transform': '1000'},       # vito unit: 
-        'ISNON':   {'unit_de': 'INT signed non',    'type': 'integer',  'signed': True,  'read_value_transform': 'non'},        # vito unit: 
+        'IS100':   {'unit_de': 'INT signed 100',    'type': 'integer',  'signed': True,  'read_value_transform': '100'},        # vito unit:
+        'IS1000':  {'unit_de': 'INT signed 1000',   'type': 'integer',  'signed': True,  'read_value_transform': '1000'},       # vito unit:
+        'ISNON':   {'unit_de': 'INT signed non',    'type': 'integer',  'signed': True,  'read_value_transform': 'non'},        # vito unit:
         'RT':      {'unit_de': 'ReturnStatus',      'type': 'list',     'signed': False, 'read_value_transform': 'non'},        # vito unit: ST, RT
-        'SC':      {'unit_de': 'SystemScheme',      'type': 'list',     'signed': False, 'read_value_transform': 'non'},        # vito unit: 
-        'SN':      {'unit_de': 'Sachnummer',        'type': 'serial',   'signed': False, 'read_value_transform': 'non'},        # vito unit: 
-        'SR':      {'unit_de': 'SetReturnStatus',   'type': 'list',     'signed': False, 'read_value_transform': 'non'},        # vito unit: 
+        'SC':      {'unit_de': 'SystemScheme',      'type': 'list',     'signed': False, 'read_value_transform': 'non'},        # vito unit:
+        'SN':      {'unit_de': 'Sachnummer',        'type': 'serial',   'signed': False, 'read_value_transform': 'non'},        # vito unit:
+        'SR':      {'unit_de': 'SetReturnStatus',   'type': 'list',     'signed': False, 'read_value_transform': 'non'},        # vito unit:
         'TI':      {'unit_de': 'SystemTime',        'type': 'datetime', 'signed': False, 'read_value_transform': 'non'},        # vito unit: TI
-        'DA':      {'unit_de': 'Date',              'type': 'date',     'signed': False, 'read_value_transform': 'non'},        # vito unit: 
-}
+        'DA':      {'unit_de': 'Date',              'type': 'date',     'signed': False, 'read_value_transform': 'non'},        # vito unit:
+    }
 }
 
 errorset = {
@@ -372,7 +425,7 @@ errorset = {
         'FD': 'Fehler Gasfeuerungsautomat',
         'FE': 'Starkes Stoerfeld (EMV) in der Naehe oder Elektronik defekt',
         'FF': 'Starkes Stoerfeld (EMV) in der Naehe oder interner Fehler'
-},
+    },
 }
 
 operatingmodes = {
@@ -382,7 +435,7 @@ operatingmodes = {
         '2': 'Heiz- und Warmwasserbetrieb',
         '4': 'Dauerbetrieb, reduziert',
         '5': 'Dauerbetrieb, normal',
-},
+    },
     'V200KO1B': {
         '00': 'Warmwasser (Schaltzeiten)',
         '01': 'reduziert Heizen (dauernd)',
@@ -390,13 +443,13 @@ operatingmodes = {
         '04': 'Heizen und Warmwasser (FS)',
         '03': 'Heizen und Warmwasser (Schaltzeiten)',
         '05': 'Standby',
-},
+    },
     'aktuelle_Betriebsart': {
         '00': 'Abschaltbetrieb',
         '01': 'Reduzierter Betrieb',
         '02': 'Normalbetrieb',
         '03': 'Dauernd Normalbetrieb',
-},
+    },
     'V200WO1C': {
         '00': 'Abschaltbetrieb',
         '01': 'Warmwasser',
@@ -405,8 +458,15 @@ operatingmodes = {
         '04': 'dauernd reduziert',
         '05': 'dauernd normal',
         '06': 'normal Abschalt',
-        '07': 'nur kühlen'
-}
+        '07': 'nur kühlen',
+    },
+    'V200HO1C': {
+        '00': 'Abschaltbetrieb',
+        '01': 'Warmwasser',
+        '02': 'Heizen und Warmwasser',
+        '03': 'Normal reduziert',
+        '04': 'Normal dauernd'
+    }
 }
 
 systemschemes = {
@@ -417,13 +477,19 @@ systemschemes = {
         '03': 'M2 + WW',
         '05': 'A1 + M2',
         '06': 'A1 + M2 + WW'
-},
+    },
     'V200WO1C': {
         '01': 'WW',
         '02': 'HK + WW',
         '04': 'HK + WW',
         '05': 'HK + WW'
-}
+    },
+    'V200HO1C': {
+        '01': 'WW',
+        '02': 'HK + WW',
+        '04': 'HK + WW',
+        '05': 'HK + WW'
+    }
 }
 
 devicetypes = {
@@ -443,7 +509,7 @@ devicetypes = {
     '2049': 'V200WO1,VBC700, Protokoll: ',
     '2032': 'VBC550, Protokoll: ',
     '2033': 'VBC550, Protokoll: '
-}
+    }
 
 returnstatus = {
     'P300': {
@@ -452,14 +518,14 @@ returnstatus = {
         '03': '2',
         'AA': 'NOT OK',
         # At least for device 20CB the heating circuit pump returns status 03 when it's on and the heating runs in in night mode
-},
+    },
 }
 
 setreturnstatus = {
     'P300': {
         '00': 'OK',
         '05': 'SYNC (NOT OK)',
-},
+    },
 }
 
 # P300 Protokoll
