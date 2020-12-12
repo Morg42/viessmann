@@ -45,10 +45,16 @@ controlset = {
         # request_response:  receive('Acknowledge' 'StartByte' 'Länge der Nutzdaten als Anzahl der Bytes zwischen diesem Byte und der Prüfsumme' 'Response' 'Read' 'addr' 'Anzahl der Bytes des Wertes' 'Wert' 'checksum')
     },
     'KW': {
+        'Baudrate': 4800,
+        'Bytesize': 8,          # 'EIGHTBITS'
+        'Parity': 'E',          # 'PARITY_EVEN',
+        'Stopbits': 2,          # 'STOPBITS_TWO',
         'StartByte': 0x01,
         'Read': 0xF7,
         'Write': 0xF4,
-        'Acknowledge': 0x05,
+        'Acknowledge': 0x01,
+        'Not_initiated': 0x05,
+        'Write_Ack': 0x00,
     },
 
 }
@@ -78,7 +84,7 @@ commandset = {
         'TempKOffset':              {'addr': '6760', 'len': 1, 'unit': 'ISNON',   'set': True, 'min_value': 0, 'max_value': 1193045},    # Kesseloffset KT ueber WWsoll in Grad C
         'Systemtime':               {'addr': '088E', 'len': 8, 'unit': 'TI',      'set': True},     # Systemzeit
         'Anlagenschema':            {'addr': '7700', 'len': 2, 'unit': 'SC',      'set': False},    # Anlagenschema
-        'DevType':                  {'addr': '00F8', 'len': 8, 'unit': 'DT',      'set': False},    # Heizungstyp
+        'Anlagentyp':               {'addr': '00F8', 'len': 8, 'unit': 'DT',      'set': False},    # Heizungstyp
         'Inventory':                {'addr': '08E0', 'len': 7, 'unit': 'SN',      'set': False},    # Sachnummer
         'CtrlId':                   {'addr': '08E0', 'len': 7, 'unit': 'DT',      'set': False},    # Reglerkennung
         # Fehler
@@ -228,49 +234,93 @@ commandset = {
     },
     'V200HO1C': {
         # Allgemein
-        'Frostgefahr':                     {'addr': '2510', 'len': 1, 'unit': 'IUBOOL', 'set': False},                                         # Frostgefahr
-        'Aussentemperatur_TP':             {'addr': '5525', 'len': 2, 'unit': 'IU10',    'set': False},                                        # Aussentemperatur_tiefpass
-        'Aussentemperatur_Dp':             {'addr': '5527', 'len': 2, 'unit': 'IU10',    'set': False},                                        # Aussentemperatur in Grad C (Gedaempft)
-        'Anlagenleistung':                 {'addr': 'a3af', 'len': 2, 'unit': 'IS10',   'set': False},                                         # Anlagenleistung
+        'Frostgefahr':                     {'addr': '2510', 'len': 1, 'unit': 'IUBOOL', 'set': False},                                        # Frostgefahr
+        'Aussentemperatur_TP':             {'addr': '5525', 'len': 2, 'unit': 'IU10',   'set': False},                                        # Aussentemperatur_tiefpass
+        'Aussentemperatur_Dp':             {'addr': '5527', 'len': 2, 'unit': 'IU10',   'set': False},                                        # Aussentemperatur in Grad C (Gedaempft)
+        'Anlagenleistung':                 {'addr': 'a38f', 'len': 2, 'unit': 'IS10',   'set': False},                                        # Anlagenleistung
         # Kessel
-        'Kesseltemperatur_TP':             {'addr': '0810', 'len': 2, 'unit': 'IU10',    'set': False},                                        # Kesseltemperatur_tiefpass
-        'Kesselsolltemperatur':            {'addr': '555A', 'len': 2, 'unit': 'IU10',    'set': False},                                        # Kesselsolltemperatur
-        'Abgastemperatur':                 {'addr': '0816', 'len': 2, 'unit': 'IU10',    'set': False},                                        # Abgastemperatur
+        'Kesseltemperatur_TP':             {'addr': '0810', 'len': 2, 'unit': 'IU10',   'set': False},                                        # Kesseltemperatur_tiefpass
+        'Kesselsolltemperatur':            {'addr': '555A', 'len': 2, 'unit': 'IU10',   'set': False},                                        # Kesselsolltemperatur
+        'Abgastemperatur':                 {'addr': '0816', 'len': 2, 'unit': 'IU10',   'set': False},                                        # Abgastemperatur
         # Fehler
-        'Sammelstoerung':                  {'addr': '0a82', 'len': 1, 'unit': 'RT', 'set': False},                                             # Sammelstörung
-        'Error0':                          {'addr': '7507', 'len': 9, 'unit': 'ES', 'set': False},                                             # Fehlerhistory Eintrag 1
-        'Error1':                          {'addr': '7510', 'len': 9, 'unit': 'ES', 'set': False},                                             # Fehlerhistory Eintrag 2
+        'Sammelstoerung':                  {'addr': '0a82', 'len': 1, 'unit': 'RT',     'set': False},                                        # Sammelstörung
+        'Error0':                          {'addr': '7507', 'len': 9, 'unit': 'ES',     'set': False},                                        # Fehlerhistory Eintrag 1
+        'Error1':                          {'addr': '7510', 'len': 9, 'unit': 'ES',     'set': False},                                        # Fehlerhistory Eintrag 2
+        'Error2':                          {'addr': '7519', 'len': 9, 'unit': 'ES',     'set': False},                                        # Fehlerhistory Eintrag 3
+        'Error3':                          {'addr': '7522', 'len': 9, 'unit': 'ES',     'set': False},                                        # Fehlerhistory Eintrag 4
+        'Error4':                          {'addr': '752B', 'len': 9, 'unit': 'ES',     'set': False},                                        # Fehlerhistory Eintrag 5
+        'Error5':                          {'addr': '7534', 'len': 9, 'unit': 'ES',     'set': False},                                        # Fehlerhistory Eintrag 6
+        'Error6':                          {'addr': '753D', 'len': 9, 'unit': 'ES',     'set': False},                                        # Fehlerhistory Eintrag 7
+        'Error7':                          {'addr': '7546', 'len': 9, 'unit': 'ES',     'set': False},                                        # Fehlerhistory Eintrag 8
+        'Error8':                          {'addr': '754F', 'len': 9, 'unit': 'ES',     'set': False},                                        # Fehlerhistory Eintrag 9
+        'Error9':                          {'addr': '7558', 'len': 9, 'unit': 'ES',     'set': False},                                        # Fehlerhistory Eintrag 10
         # Pumpen
-        'Speicherladepumpe':               {'addr': '6513', 'len': 1, 'unit': 'IUBOOL', 'set': False},                                         # Speicherladepumpe für Warmwasser
-        'Zirkulationspumpe':               {'addr': '6515', 'len': 1, 'unit': 'IUBOOL', 'set': False},                                         # Zirkulationspumpe
-        'Interne_Pumpe':                   {'addr': '7660', 'len': 1, 'unit': 'IUBOOL', 'set': False},                                         # Interne Pumpe
-        'Heizkreispumpe_HK1':              {'addr': '2906', 'len': 1, 'unit': 'IUBOOL', 'set': False},                                         # Heizkreispumpe A1
-        'Heizkreispumpe_HK2':              {'addr': '3906', 'len': 1, 'unit': 'IUINT',  'set': False},                                         # Heizkreispumpe M2
+        'Speicherladepumpe':               {'addr': '6513', 'len': 1, 'unit': 'IUBOOL', 'set': False},                                        # Speicherladepumpe für Warmwasser
+        'Zirkulationspumpe':               {'addr': '6515', 'len': 1, 'unit': 'IUBOOL', 'set': True},                                         # Zirkulationspumpe
+        'Interne_Pumpe':                   {'addr': '7660', 'len': 1, 'unit': 'IUBOOL', 'set': False},                                        # Interne Pumpe
+        'Heizkreispumpe_HK1':              {'addr': '2906', 'len': 1, 'unit': 'IUBOOL', 'set': False},                                        # Heizkreispumpe A1
+        'Heizkreispumpe_HK2':              {'addr': '3906', 'len': 1, 'unit': 'IUINT',  'set': False},                                        # Heizkreispumpe M2
         # Brenner
-        'Brennerstarts':                   {'addr': '088a', 'len': 4, 'unit': 'ISNON',  'set': True, 'min_value': 0, 'max_value': 1193045},    # Brennerstarts
-        'Brennerleistung':                 {'addr': 'a305', 'len': 2, 'unit': 'IS10',   'set': False},                                         # Brennerleistung
-        'Brenner_Betriebsstunden':         {'addr': '08a7', 'len': 4, 'unit': 'IU3600', 'set': True, 'min_value': 0, 'max_value': 1193045},    # Brenner-Betriebsstunden
+        'Brennerstarts':                   {'addr': '088a', 'len': 4, 'unit': 'ISNON',  'set': False},                                        # Brennerstarts
+        'Brennerleistung':                 {'addr': 'a305', 'len': 2, 'unit': 'IS10',   'set': False},                                        # Brennerleistung
+        'Brenner_Betriebsstunden':         {'addr': '08a7', 'len': 4, 'unit': 'IU3600', 'set': False},                                        # Brenner-Betriebsstunden
         #Solar
-        'SolarPumpe':                      {'addr': '6552', 'len': 1, 'unit': 'IUBOOL', 'set': False},    
-        'Kollektortemperatur':             {'addr': '6564', 'len': 2, 'unit': 'IS10',   'set': False},    
-        'Speichertemperatur':              {'addr': '6566', 'len': 2, 'unit': 'IU10',   'set': False},    
-        'Solar_Betriebsstunden':           {'addr': '6568', 'len': 4, 'unit': 'IU100', 'set': False},    
-        'Solar_Waermemenge':               {'addr': '6560', 'len': 2, 'unit': 'IUINT', 'set': False},    
-        'Solar_Ausbeute':                  {'addr': 'CF30', 'len': 4, 'unit': 'IUINT', 'set': False},    
+        'SolarPumpe':                      {'addr': '6552', 'len': 1, 'unit': 'IUBOOL', 'set': False},                                        # Solarpumpe
+        'Kollektortemperatur':             {'addr': '6564', 'len': 2, 'unit': 'IS10',   'set': False},                                        # Kollektortemperatur
+        'Speichertemperatur':              {'addr': '6566', 'len': 2, 'unit': 'IU10',   'set': False},                                        # Spichertemperatur
+        'Solar_Betriebsstunden':           {'addr': '6568', 'len': 4, 'unit': 'IU100',  'set': False},                                        # Solar Betriebsstunden
+        'Solar_Waermemenge':               {'addr': '6560', 'len': 2, 'unit': 'IUINT',  'set': False},                                        # Solar Waermemenge
+        'Solar_Ausbeute':                  {'addr': 'CF30', 'len': 4, 'unit': 'IUINT',  'set': False},                                        # Solar Ausbeute
         # Heizkreis 1
-        'Betriebsart_HK1':                 {'addr': '2500', 'len': 1, 'unit': 'IUINT',  'set': True, 'min_value': 0, 'max_value': 3},          # Betriebsart (0=Abschaltbetrieb, 1=Red. Betrieb, 2=Normalbetrieb (Schaltuhr), 3=Normalbetrieb (Dauernd))
-        'Heizart_HK1':                     {'addr': '2323', 'len': 1, 'unit': 'IUINT',  'set': True, 'min_value': 0, 'max_value': 4},          # Heizart     (0=Abschaltbetrieb, 1=Nur Warmwasser, 2=Heizen und Warmwasser, 3=Normalbetrieb (Dauernd))
-        'Vorlauftemperatur_Soll_HK1':      {'addr': '2544', 'len': 2, 'unit': 'IU10',   'set': False},                                         # Vorlauftemperatur Soll
-        'Vorlauftemperatur_HK1':           {'addr': '2900', 'len': 2, 'unit': 'IU10',   'set': False},                                         # Vorlauftemperatur Ist
+        'Betriebsart_HK1':                 {'addr': '2500', 'len': 1, 'unit': 'IUINT',  'set': True, 'min_value': 0, 'max_value': 3},         # Betriebsart (0=Abschaltbetrieb, 1=Red. Betrieb, 2=Normalbetrieb (Schaltuhr), 3=Normalbetrieb (Dauernd))
+        'Heizart_HK1':                     {'addr': '2323', 'len': 1, 'unit': 'IUINT',  'set': True, 'min_value': 0, 'max_value': 4},         # Heizart     (0=Abschaltbetrieb, 1=Nur Warmwasser, 2=Heizen und Warmwasser, 3=Normalbetrieb (Reduziert), 4=Normalbetrieb (Dauernd))
+        'Vorlauftemperatur_Soll_HK1':      {'addr': '2544', 'len': 2, 'unit': 'IU10',   'set': False},                                        # Vorlauftemperatur Soll
+        'Vorlauftemperatur_HK1':           {'addr': '2900', 'len': 2, 'unit': 'IU10',   'set': False},                                        # Vorlauftemperatur Ist
         # Heizkreis 2
-        'Betriebsart_HK2':                 {'addr': '3500', 'len': 1, 'unit': 'IUINT',  'set': True, 'min_value': 0, 'max_value': 3},          # Betriebsart (0=Abschaltbetrieb, 1=Red. Betrieb, 2=Normalbetrieb (Schaltuhr), 3=Normalbetrieb (Dauernd))
-        'Heizart_HK2':                     {'addr': '3323', 'len': 1, 'unit': 'IUINT',  'set': True, 'min_value': 0, 'max_value': 4},          # Heizart     (0=Abschaltbetrieb, 1=Nur Warmwasser, 2=Heizen und Warmwasser, 3=Normalbetrieb (Dauernd))
-        'Vorlauftemperatur_Soll_HK2':      {'addr': '3544', 'len': 2, 'unit': 'IU10',   'set': False},                                         # Vorlauftemperatur Soll
-        'Vorlauftemperatur_HK2':           {'addr': '3900', 'len': 2, 'unit': 'IU10',   'set': False},                                         # Vorlauftemperatur Ist
+        'Betriebsart_HK2':                 {'addr': '3500', 'len': 1, 'unit': 'IUINT',  'set': True, 'min_value': 0, 'max_value': 3},         # Betriebsart (0=Abschaltbetrieb, 1=Red. Betrieb, 2=Normalbetrieb (Schaltuhr), 3=Normalbetrieb (Dauernd))
+        'Heizart_HK2':                     {'addr': '3323', 'len': 1, 'unit': 'IUINT',  'set': True, 'min_value': 0, 'max_value': 4},         # Heizart     (0=Abschaltbetrieb, 1=Nur Warmwasser, 2=Heizen und Warmwasser, 3=Normalbetrieb (Reduziert), 4=Normalbetrieb (Dauernd))
+        'Vorlauftemperatur_Soll_HK2':      {'addr': '3544', 'len': 2, 'unit': 'IU10',   'set': False},                                        # Vorlauftemperatur Soll
+        'Vorlauftemperatur_HK2':           {'addr': '3900', 'len': 2, 'unit': 'IU10',   'set': False},                                        # Vorlauftemperatur Ist
         # Warmwasser
-        'Warmwasser_Temperatur':           {'addr': '0812', 'len': 2, 'unit': 'IU10',   'set': False},                                         # Warmwassertemperatur in Grad C
-        'Warmwasser_Solltemperatur':       {'addr': '6300', 'len': 1, 'unit': 'ISNON',  'set': True, 'min_value': 10, 'max_value': 95},        # Warmwasser-Solltemperatur
-        'Warmwasser_Austrittstemperatur':  {'addr': '0814', 'len': 2, 'unit': 'IU10',   'set': False},                                         # Warmwasseraustrittstemperatur in Grad C
+        'Warmwasser_Temperatur':           {'addr': '0812', 'len': 2, 'unit': 'IU10',   'set': False},                                        # Warmwassertemperatur in Grad C
+        'Warmwasser_Solltemperatur':       {'addr': '6300', 'len': 1, 'unit': 'ISNON',  'set': True, 'min_value': 10, 'max_value': 80},       # Warmwasser-Solltemperatur
+        'Warmwasser_Austrittstemperatur':  {'addr': '0814', 'len': 2, 'unit': 'IU10',   'set': False},                                        # Warmwasseraustrittstemperatur in Grad C
+    },
+    'V200KW2': {
+        # Allgemein
+        'Anlagentyp':                      {'addr': '00F8', 'len': 2, 'unit': 'DT',     'set': False},                                        # Ermittle Device Typ der Anlage
+        'Aussentemperatur':                {'addr': '0800', 'len': 2, 'unit': 'IU10',   'set': False},                                        # Aussentemperatur_tiefpass
+        # Kessel
+        'Kesseltemperatur':                {'addr': '0802', 'len': 2, 'unit': 'IU10',   'set': False},                                        # Kesseltemperatur_tiefpass
+        'Kesselsolltemperatur':            {'addr': '5502', 'len': 2, 'unit': 'IU10',   'set': True},                                        # Kesselsolltemperatur
+        # Fehler
+        'Sammelstoerung':                  {'addr': '0847', 'len': 1, 'unit': 'RT',     'set': False},                                        # Sammelstörung
+        'Brennerstoerung':                 {'addr': '0883', 'len': 1, 'unit': 'RT',     'set': False},
+        'Error0':                          {'addr': '7507', 'len': 9, 'unit': 'ES',     'set': False},                                        # Fehlerhistory Eintrag 1
+        'Error1':                          {'addr': '7510', 'len': 9, 'unit': 'ES',     'set': False},                                        # Fehlerhistory Eintrag 2
+        'Error2':                          {'addr': '7519', 'len': 9, 'unit': 'ES',     'set': False},                                        # Fehlerhistory Eintrag 3
+        'Error3':                          {'addr': '7522', 'len': 9, 'unit': 'ES',     'set': False},                                        # Fehlerhistory Eintrag 4
+        'Error4':                          {'addr': '752B', 'len': 9, 'unit': 'ES',     'set': False},                                        # Fehlerhistory Eintrag 5
+        'Error5':                          {'addr': '7534', 'len': 9, 'unit': 'ES',     'set': False},                                        # Fehlerhistory Eintrag 6
+        'Error6':                          {'addr': '753D', 'len': 9, 'unit': 'ES',     'set': False},                                        # Fehlerhistory Eintrag 7
+        'Error7':                          {'addr': '7546', 'len': 9, 'unit': 'ES',     'set': False},                                        # Fehlerhistory Eintrag 8
+        'Error8':                          {'addr': '754F', 'len': 9, 'unit': 'ES',     'set': False},                                        # Fehlerhistory Eintrag 9
+        'Error9':                          {'addr': '7558', 'len': 9, 'unit': 'ES',     'set': False},                                        # Fehlerhistory Eintrag 10
+        # Pumpen
+        'Speicherladepumpe':               {'addr': '0845', 'len': 1, 'unit': 'IUBOOL', 'set': False},                                        # Speicherladepumpe für Warmwasser
+        'Zirkulationspumpe':               {'addr': '0846', 'len': 1, 'unit': 'IUBOOL', 'set': False},                                        # Zirkulationspumpe
+        'Heizkreispumpe_A1M1':             {'addr': '2906', 'len': 1, 'unit': 'IUBOOL', 'set': False},                                        # Heizkreispumpe A1
+        'Heizkreispumpe_M2':               {'addr': '3906', 'len': 1, 'unit': 'IUINT',  'set': False},                                        # Heizkreispumpe M2
+        # Brenner
+        'BrennerStufe':                    {'addr': '551E', 'len': 1, 'unit': 'RT',     'set': False},                                        # Ermittle den Brennerstatus aktuelle Stufe
+        'Heizleistung':                    {'addr': '55E3', 'len': 1, 'unit': 'IU2',    'set': False},                                        
+        # Heizkreis M2
+        'MischerM2':                       {'addr': '354C', 'len': 2, 'unit': 'IUINT',  'set': False},                                        # Ermittle Mischerposition M2
+        'Vorlauftemperatur_Soll_M2':       {'addr': '3544', 'len': 2, 'unit': 'IU10',   'set': True, 'min_value': 10, 'max_value': 80},       # Vorlauftemperatur Soll
+        'Vorlauftemperatur_M2':            {'addr': '080C', 'len': 2, 'unit': 'IU10',   'set': False},                                        # Vorlauftemperatur Ist
+        # Warmwasser
+        'Warmwasser_Temperatur':           {'addr': '0804', 'len': 2, 'unit': 'IU10',   'set': False},                                        # Warmwassertemperatur in Grad C
+        'Warmwasser_Solltemperatur':       {'addr': '6300', 'len': 1, 'unit': 'ISNON',  'set': True, 'min_value': 10, 'max_value': 80},       # Warmwasser-Solltemperatur
     },
     'V200WO1C': {
         # generelle Infos
@@ -355,6 +405,47 @@ unitset = {
         'SR':      {'unit_de': 'SetReturnStatus',   'type': 'list',     'signed': False, 'read_value_transform': 'non'},        # vito unit:
         'TI':      {'unit_de': 'SystemTime',        'type': 'datetime', 'signed': False, 'read_value_transform': 'non'},        # vito unit: TI
         'DA':      {'unit_de': 'Date',              'type': 'date',     'signed': False, 'read_value_transform': 'non'},        # vito unit:
+    },
+    'KW': {
+# UT -> IS10
+# UTH -> IS100
+# UN -> IS10
+# UT1 -> IU2
+# UT1U -> IU2
+# UTI -> IUINT
+# ST -> IUBOOL, IUNON
+# CO -> IUINT, IUNON
+# COL -> IU1000
+# PR, PR3 -> IU2
+# PR1, PR2 -> IUINT
+# CS -> IU3600
+# CT -> CT
+# RT -> RT
+# BA -> BA
+# SR -> SR
+        'BA':      {'unit_de': 'Betriebsart',       'type': 'list',     'signed': False, 'read_value_transform': 'non'},        # vito unit: BA
+        'CT':      {'unit_de': 'CycleTime',         'type': 'timer',    'signed': False, 'read_value_transform': 'non'},        # vito unit: CT
+#        'DT':      {'unit_de': 'DeviceType',        'type': 'list',     'signed': False, 'read_value_transform': 'non'},        # vito unit: DT
+#        'ES':      {'unit_de': 'ErrorState',        'type': 'list',     'signed': False, 'read_value_transform': 'non'},        # vito unit: ES
+        'IU2':     {'unit_de': 'INT unsigned 2',    'type': 'integer',  'signed': False, 'read_value_transform': '2'},          # vito unit: UT1U, PR1
+        'IU10':    {'unit_de': 'INT unsigned 10',   'type': 'integer',  'signed': False, 'read_value_transform': '10'},         # vito unit:
+        'IU100':   {'unit_de': 'INT unsigned 100',  'type': 'integer',  'signed': False, 'read_value_transform': '100'},        # vito unit:
+        'IU1000':  {'unit_de': 'INT unsigned 1000', 'type': 'integer',  'signed': False, 'read_value_transform': '1000'},        # vito unit:
+        'IU3600':  {'unit_de': 'INT unsigned 3600', 'type': 'integer',  'signed': False, 'read_value_transform': '3600'},       # vito unit: CS
+        'IUBOOL':  {'unit_de': 'INT unsigned bool', 'type': 'integer',  'signed': False, 'read_value_transform': 'bool'},       # vito unit:
+        'IUINT':   {'unit_de': 'INT unsigned int',  'type': 'integer',  'signed': False, 'read_value_transform': 'int'},        # vito unit:
+#        'IUNON':   {'unit_de': 'INT unsigned non',  'type': 'integer',  'signed': False, 'read_value_transform': 'non'},        # vito unit: UTI, CO
+        'IS2':     {'unit_de': 'INT signed 2',      'type': 'integer',  'signed': True,  'read_value_transform': '2'},          # vito unit: UT1, PR
+        'IS10':    {'unit_de': 'INT signed 10',     'type': 'integer',  'signed': True,  'read_value_transform': '10'},         # vito unit: UT, UN
+        'IS100':   {'unit_de': 'INT signed 100',    'type': 'integer',  'signed': True,  'read_value_transform': '100'},        # vito unit:
+#        'IS1000':  {'unit_de': 'INT signed 1000',   'type': 'integer',  'signed': True,  'read_value_transform': '1000'},       # vito unit:
+#        'ISNON':   {'unit_de': 'INT signed non',    'type': 'integer',  'signed': True,  'read_value_transform': 'non'},        # vito unit:
+        'RT':      {'unit_de': 'ReturnStatus',      'type': 'list',     'signed': False, 'read_value_transform': 'non'},        # vito unit: ST, RT
+#        'SC':      {'unit_de': 'SystemScheme',      'type': 'list',     'signed': False, 'read_value_transform': 'non'},        # vito unit:
+#        'SN':      {'unit_de': 'Sachnummer',        'type': 'serial',   'signed': False, 'read_value_transform': 'non'},        # vito unit:
+#        'SR':      {'unit_de': 'SetReturnStatus',   'type': 'list',     'signed': False, 'read_value_transform': 'non'},        # vito unit:
+#        'TI':      {'unit_de': 'SystemTime',        'type': 'datetime', 'signed': False, 'read_value_transform': 'non'},        # vito unit: TI
+#        'DA':      {'unit_de': 'Date',              'type': 'date',     'signed': False, 'read_value_transform': 'non'},        # vito unit:
     }
 }
 
@@ -364,16 +455,24 @@ errorset = {
         '0F': 'Wartung (fuer Reset Codieradresse 24 auf 0 stellen)',
         '10': 'Kurzschluss Aussentemperatursensor',
         '18': 'Unterbrechung Aussentemperatursensor',
+        '19': 'Unterbrechung Kommunikation Außentemperatursensor RF',
+        '1D': 'Keine Kommunikation mit Sensor',
+        '1E': 'Strömungssensor defekt',
+        '1F': 'Strömungssensor defekt',
         '20': 'Kurzschluss Vorlauftemperatursensor',
         '21': 'Kurzschluss Ruecklauftemperatursensor',
-        '28': 'Unterbrechung Aussentemperatursensor',
+        '28': 'Unterbrechung Aussentemperatursensor / Vorlauftemperatursensor Anlage',
         '29': 'Unterbrechung Ruecklauftemperatursensor',
         '30': 'Kurzschluss Kesseltemperatursensor',
         '38': 'Unterbrechung Kesseltemperatursensor',
         '40': 'Kurzschluss Vorlauftemperatursensor M2',
         '42': 'Unterbrechung Vorlauftemperatursensor M2',
+        '44': 'Kurzschluss Vorlauftemperatursensor Heizkreis 3',
+        '48': 'Unterbrechung Vorlauftemperatursensor Heizkreis 3',
         '50': 'Kurzschluss Speichertemperatursensor',
+        '51': 'Kurzschluss Auslauftemperatursensor',
         '58': 'Unterbrechung Speichertemperatursensor',
+        '59': 'Unterbrechung Auslauftemperatursensor',
         '92': 'Solar: Kurzschluss Kollektortemperatursensor',
         '93': 'Solar: Kurzschluss Sensor S3',
         '94': 'Solar: Kurzschluss Speichertemperatursensor',
@@ -382,7 +481,9 @@ errorset = {
         '9C': 'Solar: Unterbrechung Speichertemperatursensor',
         '9E': 'Solar: Zu geringer bzw. kein Volumenstrom oder Temperaturwächter ausgeloest',
         '9F': 'Solar: Fehlermeldung Solarteil (siehe Solarregler)',
+        'A4': 'Amx. Anlagendruck überschritten',
         'A7': 'Bedienteil defekt',
+        'A8': 'Luft in der internen Umwaelzpumpe oder Mindest-Volumenstrom nicht erreicht',
         'B0': 'Kurzschluss Abgastemperatursensor',
         'B1': 'Kommunikationsfehler Bedieneinheit',
         'B4': 'Interner Fehler (Elektronik)',
@@ -392,37 +493,158 @@ errorset = {
         'B8': 'Unterbrechung Abgastemperatursensor',
         'B9': 'Interner Fehler (Dateneingabe wiederholen)',
         'BA': 'Kommunikationsfehler Erweiterungssatz fuer Mischerkreis M2',
+        'BB': 'Kommunikationsfehler Erweiterungssatz fuer Mischerkreis 3',
         'BC': 'Kommunikationsfehler Fernbedienung Vitorol, Heizkreis M1',
         'BD': 'Kommunikationsfehler Fernbedienung Vitorol, Heizkreis M2',
         'BE': 'Falsche Codierung Fernbedienung Vitorol',
+        'BF': 'Falsches Kommunikationsmodul LON',
         'C1': 'Externe Sicherheitseinrichtung (Kessel kuehlt aus)',
         'C2': 'Kommunikationsfehler Solarregelung',
+        'C3': 'Kommunikationsfehler Erweiterung AM1',
+        'C4': 'Kommunikationsfehler Erweiterumg Open Therm',
         'C5': 'Kommunikationsfehler drehzahlgeregelte Heizkreispumpe, Heizkreis M1',
         'C6': 'Kommunikationsfehler drehzahlgeregelte Heizkreispumpe, Heizkreis M2',
         'C7': 'Falsche Codierung der Heizkreispumpe',
+        'C8': 'Kommunikationsfehler drehzahlgeregelte, externe Heizkreispumpe 3',
         'C9': 'Stoermeldeeingang am Schaltmodul-V aktiv',
         'CD': 'Kommunikationsfehler Vitocom 100 (KM-BUS)',
         'CE': 'Kommunikationsfehler Schaltmodul-V',
         'CF': 'Kommunikationsfehler LON Modul',
         'D1': 'Brennerstoerung',
         'D4': 'Sicherheitstemperaturbegrenzer hat ausgeloest oder Stoermeldemodul nicht richtig gesteckt',
+        'D6': 'Eingang DE1 an Erweiterung EA1 meldet eine Stoerung',
+        'D7': 'Eingang DE2 an Erweiterung EA1 meldet eine Stoerung',
+        'D8': 'Eingang DE3 an Erweiterung EA1 meldet eine Stoerung',
         'DA': 'Kurzschluss Raumtemperatursensor, Heizkreis M1',
         'DB': 'Kurzschluss Raumtemperatursensor, Heizkreis M2',
+        'DC': 'Kurzschluss Raumtemperatursensor, Heizkreis 3',
         'DD': 'Unterbrechung Raumtemperatursensor, Heizkreis M1',
         'DE': 'Unterbrechung Raumtemperatursensor, Heizkreis M2',
+        'DF': 'Unterbrechung Raumtemperatursensor, Heizkreis 3',
+        'E0': 'Fehler externer LON Teilnehmer',
+        'E1': 'Isolationsstrom waehrend des Kalibrierens zu hoch',
+        'E3': 'Zu geringe Wärmeabnahme während des Kalibrierens, Temperaturwächter hat ausgeschaltet',
         'E4': 'Fehler Versorgungsspannung',
-        'E5': 'Interner Fehler (Ionisationselektrode)',
-        'E6': 'Abgas- / Zuluftsystem verstopft',
+        'E5': 'Interner Fehler, Flammenverstärker(Ionisationselektrode)',
+        'E6': 'Abgas- / Zuluftsystem verstopft, Anlagendruck zu niedrig',
+        'E7': 'Ionisationsstrom waehrend des Kalibrierens zu gering',
+        'E8': 'Ionisationsstrom nicht im gültigen Bereich',
+        'EA': 'Ionisationsstrom waehrend des Kalibrierens nicht im gueltigen Bereich',
+        'EB': 'Wiederholter Flammenverlust waehrend des Kalibrierens',
+        'EC': 'Parameterfehler waehrend des Kalibrierens',
+        'ED': 'Interner Fehler',
+        'EE': 'Flammensignal ist bei Brennerstart nicht vorhanden oder zu gering',
+        'EF': 'Flammenverlust direkt nach Flammenbildung (waehrend der Sicherheitszeit)',
         'F0': 'Interner Fehler (Regelung tauschen)',
         'F1': 'Abgastemperaturbegrenzer ausgeloest',
         'F2': 'Temperaturbegrenzer ausgeloest',
         'F3': 'Flammensigal beim Brennerstart bereits vorhanden',
         'F4': 'Flammensigal nicht vorhanden',
-        'F7': 'Differenzdrucksensor defekt',
+        'F7': 'Differenzdrucksensor defekt, Kurzschluss ider Wasserdrucksensor',
         'F8': 'Brennstoffventil schliesst zu spaet',
         'F9': 'Geblaesedrehzahl beim Brennerstart zu niedrig',
         'FA': 'Geblaesestillstand nicht erreicht',
-        'FD': 'Fehler Gasfeuerungsautomat',
+        'FC': 'Gaskombiregler defekt oder fehlerhafte Ansteuerung Modulationsventil oder Abgasweg versperrt',
+        'FD': 'Fehler Gasfeuerungsautomat, Kesselkodierstecker fehlt(in Verbindung mit B7)',
+        'FE': 'Starkes Stoerfeld (EMV) in der Naehe oder Elektronik defekt',
+        'FF': 'Starkes Stoerfeld (EMV) in der Naehe oder interner Fehler'
+    },
+    'KW': {
+        '00': 'Regelbetrieb (kein Fehler)',
+        '0F': 'Wartung (fuer Reset Codieradresse 24 auf 0 stellen)',
+        '10': 'Kurzschluss Aussentemperatursensor',
+        '18': 'Unterbrechung Aussentemperatursensor',
+        '19': 'Unterbrechung Kommunikation Außentemperatursensor RF',
+        '1D': 'Keine Kommunikation mit Sensor',
+        '1E': 'Strömungssensor defekt',
+        '1F': 'Strömungssensor defekt',
+        '20': 'Kurzschluss Vorlauftemperatursensor',
+        '21': 'Kurzschluss Ruecklauftemperatursensor',
+        '28': 'Unterbrechung Aussentemperatursensor / Vorlauftemperatursensor Anlage',
+        '29': 'Unterbrechung Ruecklauftemperatursensor',
+        '30': 'Kurzschluss Kesseltemperatursensor',
+        '38': 'Unterbrechung Kesseltemperatursensor',
+        '40': 'Kurzschluss Vorlauftemperatursensor M2',
+        '42': 'Unterbrechung Vorlauftemperatursensor M2',
+        '44': 'Kurzschluss Vorlauftemperatursensor Heizkreis 3',
+        '48': 'Unterbrechung Vorlauftemperatursensor Heizkreis 3',
+        '50': 'Kurzschluss Speichertemperatursensor',
+        '51': 'Kurzschluss Auslauftemperatursensor',
+        '58': 'Unterbrechung Speichertemperatursensor',
+        '59': 'Unterbrechung Auslauftemperatursensor',
+        '92': 'Solar: Kurzschluss Kollektortemperatursensor',
+        '93': 'Solar: Kurzschluss Sensor S3',
+        '94': 'Solar: Kurzschluss Speichertemperatursensor',
+        '9A': 'Solar: Unterbrechung Kollektortemperatursensor',
+        '9B': 'Solar: Unterbrechung Sensor S3',
+        '9C': 'Solar: Unterbrechung Speichertemperatursensor',
+        '9E': 'Solar: Zu geringer bzw. kein Volumenstrom oder Temperaturwächter ausgeloest',
+        '9F': 'Solar: Fehlermeldung Solarteil (siehe Solarregler)',
+        'A4': 'Amx. Anlagendruck überschritten',
+        'A7': 'Bedienteil defekt',
+        'A8': 'Luft in der internen Umwaelzpumpe oder Mindest-Volumenstrom nicht erreicht',
+        'B0': 'Kurzschluss Abgastemperatursensor',
+        'B1': 'Kommunikationsfehler Bedieneinheit',
+        'B4': 'Interner Fehler (Elektronik)',
+        'B5': 'Interner Fehler (Elektronik)',
+        'B6': 'Ungueltige Hardwarekennung (Elektronik)',
+        'B7': 'Interner Fehler (Kesselkodierstecker)',
+        'B8': 'Unterbrechung Abgastemperatursensor',
+        'B9': 'Interner Fehler (Dateneingabe wiederholen)',
+        'BA': 'Kommunikationsfehler Erweiterungssatz fuer Mischerkreis M2',
+        'BB': 'Kommunikationsfehler Erweiterungssatz fuer Mischerkreis 3',
+        'BC': 'Kommunikationsfehler Fernbedienung Vitorol, Heizkreis M1',
+        'BD': 'Kommunikationsfehler Fernbedienung Vitorol, Heizkreis M2',
+        'BE': 'Falsche Codierung Fernbedienung Vitorol',
+        'BF': 'Falsches Kommunikationsmodul LON',
+        'C1': 'Externe Sicherheitseinrichtung (Kessel kuehlt aus)',
+        'C2': 'Kommunikationsfehler Solarregelung',
+        'C3': 'Kommunikationsfehler Erweiterung AM1',
+        'C4': 'Kommunikationsfehler Erweiterumg Open Therm',
+        'C5': 'Kommunikationsfehler drehzahlgeregelte Heizkreispumpe, Heizkreis M1',
+        'C6': 'Kommunikationsfehler drehzahlgeregelte Heizkreispumpe, Heizkreis M2',
+        'C7': 'Falsche Codierung der Heizkreispumpe',
+        'C8': 'Kommunikationsfehler drehzahlgeregelte, externe Heizkreispumpe 3',
+        'C9': 'Stoermeldeeingang am Schaltmodul-V aktiv',
+        'CD': 'Kommunikationsfehler Vitocom 100 (KM-BUS)',
+        'CE': 'Kommunikationsfehler Schaltmodul-V',
+        'CF': 'Kommunikationsfehler LON Modul',
+        'D1': 'Brennerstoerung',
+        'D4': 'Sicherheitstemperaturbegrenzer hat ausgeloest oder Stoermeldemodul nicht richtig gesteckt',
+        'D6': 'Eingang DE1 an Erweiterung EA1 meldet eine Stoerung',
+        'D7': 'Eingang DE2 an Erweiterung EA1 meldet eine Stoerung',
+        'D8': 'Eingang DE3 an Erweiterung EA1 meldet eine Stoerung',
+        'DA': 'Kurzschluss Raumtemperatursensor, Heizkreis M1',
+        'DB': 'Kurzschluss Raumtemperatursensor, Heizkreis M2',
+        'DC': 'Kurzschluss Raumtemperatursensor, Heizkreis 3',
+        'DD': 'Unterbrechung Raumtemperatursensor, Heizkreis M1',
+        'DE': 'Unterbrechung Raumtemperatursensor, Heizkreis M2',
+        'DF': 'Unterbrechung Raumtemperatursensor, Heizkreis 3',
+        'E0': 'Fehler externer LON Teilnehmer',
+        'E1': 'Isolationsstrom waehrend des Kalibrierens zu hoch',
+        'E3': 'Zu geringe Wärmeabnahme während des Kalibrierens, Temperaturwächter hat ausgeschaltet',
+        'E4': 'Fehler Versorgungsspannung',
+        'E5': 'Interner Fehler, Flammenverstärker(Ionisationselektrode)',
+        'E6': 'Abgas- / Zuluftsystem verstopft, Anlagendruck zu niedrig',
+        'E7': 'Ionisationsstrom waehrend des Kalibrierens zu gering',
+        'E8': 'Ionisationsstrom nicht im gültigen Bereich',
+        'EA': 'Ionisationsstrom waehrend des Kalibrierens nicht im gueltigen Bereich',
+        'EB': 'Wiederholter Flammenverlust waehrend des Kalibrierens',
+        'EC': 'Parameterfehler waehrend des Kalibrierens',
+        'ED': 'Interner Fehler',
+        'EE': 'Flammensignal ist bei Brennerstart nicht vorhanden oder zu gering',
+        'EF': 'Flammenverlust direkt nach Flammenbildung (waehrend der Sicherheitszeit)',
+        'F0': 'Interner Fehler (Regelung tauschen)',
+        'F1': 'Abgastemperaturbegrenzer ausgeloest',
+        'F2': 'Temperaturbegrenzer ausgeloest',
+        'F3': 'Flammensigal beim Brennerstart bereits vorhanden',
+        'F4': 'Flammensigal nicht vorhanden',
+        'F7': 'Differenzdrucksensor defekt, Kurzschluss ider Wasserdrucksensor',
+        'F8': 'Brennstoffventil schliesst zu spaet',
+        'F9': 'Geblaesedrehzahl beim Brennerstart zu niedrig',
+        'FA': 'Geblaesestillstand nicht erreicht',
+        'FC': 'Gaskombiregler defekt oder fehlerhafte Ansteuerung Modulationsventil oder Abgasweg versperrt',
+        'FD': 'Fehler Gasfeuerungsautomat, Kesselkodierstecker fehlt(in Verbindung mit B7)',
         'FE': 'Starkes Stoerfeld (EMV) in der Naehe oder Elektronik defekt',
         'FF': 'Starkes Stoerfeld (EMV) in der Naehe oder interner Fehler'
     },
@@ -493,11 +715,11 @@ systemschemes = {
 }
 
 devicetypes = {
-    '2098': 'V200KW2, Protokoll: KW2',
+    '2098': 'V200KW2, Protokoll: KW',
     '2053': 'GWG_VBEM, Protokoll: GWG',
     '20CB': 'VScotHO1, Protokoll: P300',
-    '2094': 'V200KW1, Protokoll: KW2',
-    '209F': 'V200KO1B, Protokoll: P300, KW2',
+    '2094': 'V200KW1, Protokoll: KW',
+    '209F': 'V200KO1B, Protokoll: P300, KW',
     '204D': 'V200WO1C, Protokoll: P300',
     '20B8': 'V333MW1, Protokoll: ',
     '20A0': 'V100GC1, Protokoll: ',
@@ -519,10 +741,20 @@ returnstatus = {
         'AA': 'NOT OK',
         # At least for device 20CB the heating circuit pump returns status 03 when it's on and the heating runs in in night mode
     },
+    'KW': {
+        '00': '0',
+        '01': '1',
+        '03': '2',
+        'AA': 'NOT OK',
+    },
 }
 
 setreturnstatus = {
     'P300': {
+        '00': 'OK',
+        '05': 'SYNC (NOT OK)',
+    },
+    'KW': {
         '00': 'OK',
         '05': 'SYNC (NOT OK)',
     },

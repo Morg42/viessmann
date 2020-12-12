@@ -44,7 +44,7 @@ class Viessmann(SmartPlugin):
     '''
     ALLOW_MULTIINSTANCE = False
 
-    PLUGIN_VERSION = '1.0.0'
+    PLUGIN_VERSION = '1.1.0'
 
     #
     # public methods
@@ -53,10 +53,10 @@ class Viessmann(SmartPlugin):
     def __init__(self, sh, *args, **kwargs):
 
         # Get plugin parameter
-        self._serialport = self.get_parameter_value('serialport')          # /dev/optolink
-        self._heating_type = self.get_parameter_value('heating_type')      # V200KO1B
-        self._protocol = self.get_parameter_value('protocol')              # P300
-        self._timeout = self.get_parameter_value('timeout')                # timeout in sec for plugin serial read operation
+        self._serialport = self.get_parameter_value('serialport')
+        self._heating_type = self.get_parameter_value('heating_type')
+        self._protocol = self.get_parameter_value('protocol')
+        self._timeout = self.get_parameter_value('timeout')
 
         # Set variables
         self._params = {}                                                   # Item dict
@@ -411,40 +411,49 @@ class Viessmann(SmartPlugin):
             self.logger.error('Init communication not possible as connect failed.')
             return False
 
-        # if device answers SYNC b'\x16\x00\x00' with b'\x06', comm is initialized
-        self.logger.info('Init Communication....')
-        is_initialized = False
-        initstringsent = False
-        self.logger.debug('send_bytes: Send reset command {}'.format(self._int2bytes(self._controlset['Reset_Command'], 1)))
-        self._send_bytes(self._int2bytes(self._controlset['Reset_Command'], 1))
-        readbyte = self._read_bytes(1)
-        self.logger.debug('read_bytes: read {}, last byte is {}'.format(readbyte, self._lastbyte))
+        # initialization only necessary for P300 protocol...
 
-        for i in range(0, 10):
-            if initstringsent and self._lastbyte == self._int2bytes(self._controlset['Acknowledge'], 1):
-                # Schnittstelle hat auf den Initialisierungsstring mit OK geantwortet. Die Abfrage von Werten kann beginnen. Diese Funktion meldet hierzu True zurück.
-                is_initialized = True
-                self.logger.debug('Device acknowledged initialization')
-                break
-            if self._lastbyte == self._int2bytes(self._controlset['Not_initiated'], 1):
-                # Schnittstelle ist zurückgesetzt und wartet auf Daten; Antwort b'\x05' = Warten auf Initialisierungsstring oder Antwort b'\x06' = Schnittstelle initialisiert
-                self._send_bytes(self._int2bytes(self._controlset['Sync_Command'], 3))
-                self.logger.debug('send_bytes: Send sync command {}'.format(self._int2bytes(self._controlset['Sync_Command'], 3)))
-                initstringsent = True
-            elif self._lastbyte == self._int2bytes(self._controlset['Init_Error'], 1):
-                self.logger.error('The interface has reported an error (\x15), loop increment {}'.format(i))
-                self._send_bytes(self._int2bytes(self._controlset['Reset_Command'], 1))
-                self.logger.debug('send_bytes: Send reset command {}'.format(self._int2bytes(self._controlset['Reset_Command'], 1)))
-                initstringsent = False
-            else:
-                self._send_bytes(self._int2bytes(self._controlset['Reset_Command'], 1))
-                self.logger.debug('send_bytes: Send reset command {}'.format(self._int2bytes(self._controlset['Reset_Command'], 1)))
-                initstringsent = False
+        if self._protocol == 'P300':
+
+            # if device answers SYNC b'\x16\x00\x00' with b'\x06', comm is initialized
+            self.logger.info('Init Communication....')
+            is_initialized = False
+            initstringsent = False
+            self.logger.debug('send_bytes: Send reset command {}'.format(self._int2bytes(self._controlset['Reset_Command'], 1)))
+            self._send_bytes(self._int2bytes(self._controlset['Reset_Command'], 1))
             readbyte = self._read_bytes(1)
             self.logger.debug('read_bytes: read {}, last byte is {}'.format(readbyte, self._lastbyte))
 
-        self.logger.info('Communication initialized: {}'.format(is_initialized))
-        self._initialized = is_initialized
+            for i in range(0, 10):
+                if initstringsent and self._lastbyte == self._int2bytes(self._controlset['Acknowledge'], 1):
+                    # Schnittstelle hat auf den Initialisierungsstring mit OK geantwortet. Die Abfrage von Werten kann beginnen. Diese Funktion meldet hierzu True zurück.
+                    is_initialized = True
+                    self.logger.debug('Device acknowledged initialization')
+                    break
+                if self._lastbyte == self._int2bytes(self._controlset['Not_initiated'], 1):
+                    # Schnittstelle ist zurückgesetzt und wartet auf Daten; Antwort b'\x05' = Warten auf Initialisierungsstring oder Antwort b'\x06' = Schnittstelle initialisiert
+                    self._send_bytes(self._int2bytes(self._controlset['Sync_Command'], 3))
+                    self.logger.debug('send_bytes: Send sync command {}'.format(self._int2bytes(self._controlset['Sync_Command'], 3)))
+                    initstringsent = True
+                elif self._lastbyte == self._int2bytes(self._controlset['Init_Error'], 1):
+                    self.logger.error('The interface has reported an error (\x15), loop increment {}'.format(i))
+                    self._send_bytes(self._int2bytes(self._controlset['Reset_Command'], 1))
+                    self.logger.debug('send_bytes: Send reset command {}'.format(self._int2bytes(self._controlset['Reset_Command'], 1)))
+                    initstringsent = False
+                else:
+                    self._send_bytes(self._int2bytes(self._controlset['Reset_Command'], 1))
+                    self.logger.debug('send_bytes: Send reset command {}'.format(self._int2bytes(self._controlset['Reset_Command'], 1)))
+                    initstringsent = False
+                readbyte = self._read_bytes(1)
+                self.logger.debug('read_bytes: read {}, last byte is {}'.format(readbyte, self._lastbyte))
+
+            self.logger.info('Communication initialized: {}'.format(is_initialized))
+            self._initialized = is_initialized
+
+        else:  # at the moment the only other supported protocol is 'KW' which is not stateful
+            is_initialized = True
+            self._initialized = is_initialized
+
         return is_initialized
 
     def _create_cyclic_scheduler(self):
@@ -516,19 +525,33 @@ class Viessmann(SmartPlugin):
         commandvaluebytes = commandconf['len']
 
         # Build packet for read commands
+        #
+        # at the moment this only has to differentiate between protocols P300 and KW
+        # these are basically similar, only P300 is an evolution of KW adding
+        # stateful connections, command length and checksum
+        #
+        # so for the time being the easy way is one code path for both protocols which
+        # omits P300 elements from the built byte string.
+        # Later additions of other protocols (like GWG) might have to bring a second
+        # code path for proper processing
         packet = bytearray()
         packet.extend(self._int2bytes(self._controlset['StartByte'], 1))
-        packet.extend(self._int2bytes(self._controlset['Command_bytes_read'], 1))
-        packet.extend(self._int2bytes(self._controlset['Request'], 1))
+        if self._protocol == 'P300':
+            packet.extend(self._int2bytes(self._controlset['Command_bytes_read'], 1))
+            packet.extend(self._int2bytes(self._controlset['Request'], 1))
         packet.extend(self._int2bytes(self._controlset['Read'], 1))
         packet.extend(bytes.fromhex(commandcode))
         packet.extend(self._int2bytes(commandvaluebytes, 1))
-        packet.extend(self._int2bytes(self._calc_checksum(packet), 1))
+        if self._protocol == 'P300':
+            packet.extend(self._int2bytes(self._calc_checksum(packet), 1))
         self.logger.debug('Preparing command {} with packet to be sent as hexstring: {} and as bytes: {}'.format(commandname, self._bytes2hexstring(packet), packet))
-        packetlen_response = int(self._controlset['Command_bytes_read']) + 4 + int(commandvaluebytes)
+        if self._protocol == 'P300':
+            packetlen_response = int(self._controlset['Command_bytes_read']) + 4 + int(commandvaluebytes)
+        else:
+            packetlen_response = int(commandvaluebytes)
 
         # hand over built packet to send_command
-        self._send_command(packet, packetlen_response)
+        self._send_command(packet, packetlen_response, commandname)
 
     def _send_write_command(self, commandname, value=None):
         '''
@@ -629,20 +652,34 @@ class Viessmann(SmartPlugin):
                         self.logger.debug('Payload length is: {} bytes.'.format(payloadlength))
 
                         # Build packet with value bytes for write commands
+                        #
+                        # at the moment this only has to differentiate between protocols P300 and KW
+                        # these are basically similar, only P300 is an evolution of KW adding
+                        # stateful connections, command length and checksum
+                        #
+                        # so for the time being the easy way is one code path for both protocols which
+                        # omits P300 elements from the built byte string.
+                        # Later additions of other protocols (like GWG) might have to bring a second
+                        # code path for proper processing
                         packet = bytearray()
                         packet.extend(self._int2bytes(self._controlset['StartByte'], 1))
-                        packet.extend(self._int2bytes(payloadlength, 1))
-                        packet.extend(self._int2bytes(self._controlset['Request'], 1))
+                        if self._protocol == 'P300':
+                            packet.extend(self._int2bytes(payloadlength, 1))
+                            packet.extend(self._int2bytes(self._controlset['Request'], 1))
                         packet.extend(self._int2bytes(self._controlset['Write'], 1))
                         packet.extend(bytes.fromhex(commandcode))
                         packet.extend(self._int2bytes(commandvaluebytes, 1, commandsigned))
                         packet.extend(valuebytes)
-                        packet.extend(self._int2bytes(self._calc_checksum(packet), 1))
+                        if self._protocol == 'P300':
+                            packet.extend(self._int2bytes(self._calc_checksum(packet), 1))
                         self.logger.debug('Preparing command {} with value {} (transformed to value byte \'{}\') to be sent as packet {}.'.format(commandname, value, self._bytes2hexstring(valuebytes), self._bytes2hexstring(packet)))
-                        packetlen_response = int(self._controlset['Command_bytes_read']) + 4
+                        if self._protocol == 'P300':
+                            packetlen_response = int(self._controlset['Command_bytes_read']) + 4
+                        else:
+                            packetlen_response = 1
 
                         # hand over built packet to send_command
-                        self._send_command(packet, packetlen_response)
+                        self._send_command(packet, packetlen_response, commandname, False)
                     else:
                         self.logger.error('No valid value to be sent')
                         return False
@@ -659,7 +696,7 @@ class Viessmann(SmartPlugin):
 
         return True
 
-    def _send_command(self, packet, packetlen_response):
+    def _send_command(self, packet, packetlen_response, rcommandcode='', read_response=True):
         '''
         Send command sequence to device
 
@@ -667,6 +704,10 @@ class Viessmann(SmartPlugin):
         :type packet: bytearray
         :param packetlen_response: number of bytes expected in reply
         :type packetlen_response: int
+        :param rcommandcode: Commandcode used for request (only needed for KW protocol)
+        :type rcommandcode: str
+        :param read_response: True if command was read command and value is expected, False if only status byte is expected (only needed for KW protocol)
+        :type read_response: bool
         '''
         if not self._connected:
             self.logger.error('Not connected, trying to reconnect.')
@@ -686,6 +727,9 @@ class Viessmann(SmartPlugin):
             if self._initialized:
                 # send query
                 try:
+                    if self._protocol == 'KW':
+                        # wait for 0x05 from device
+                        self._read_bytes(1)
                     self._send_bytes(packet)
                     self.logger.debug('Successfully sent packet: {}'.format(self._bytes2hexstring(packet)))
                     time.sleep(0.1)
@@ -698,22 +742,32 @@ class Viessmann(SmartPlugin):
                 try:
                     self.logger.debug('Trying to receive {} bytes of the response.'.format(packetlen_response))
                     chunk = self._read_bytes(packetlen_response)
-                    time.sleep(0.1)
-                    self.logger.debug('Received {} bytes chunk of response as hexstring {} and as bytes {}'.format(len(chunk), self._bytes2hexstring(chunk), chunk))
-                    if len(chunk) != 0:
-                        if chunk[:1] == self._int2bytes(self._controlset['Error'], 1):
-                            self.logger.error('Interface returned error! response was: {}'.format(chunk))
-                        elif len(chunk) == 1 and chunk[:1] == self._int2bytes(self._controlset['Not_initiated'], 1):
-                            self.logger.error('Received invalid chunk, connection not initialized. Forcing re-initialize...')
-                            self._initialized = False
-                        elif chunk[:1] != self._int2bytes(self._controlset['Acknowledge'], 1):
-                            self.logger.error('Received invalid chunk, not starting with ACK! response was: {}'.format(chunk))
+
+                    if self._protocol == 'P300':
+                        time.sleep(0.1)
+                        self.logger.debug('Received {} bytes chunk of response as hexstring {} and as bytes {}'.format(len(chunk), self._bytes2hexstring(chunk), chunk))
+                        if len(chunk) != 0:
+                            if chunk[:1] == self._int2bytes(self._controlset['Error'], 1):
+                                self.logger.error('Interface returned error! response was: {}'.format(chunk))
+                            elif len(chunk) == 1 and chunk[:1] == self._int2bytes(self._controlset['Not_initiated'], 1):
+                                self.logger.error('Received invalid chunk, connection not initialized. Forcing re-initialize...')
+                                self._initialized = False
+                            elif chunk[:1] != self._int2bytes(self._controlset['Acknowledge'], 1):
+                                self.logger.error('Received invalid chunk, not starting with ACK! response was: {}'.format(chunk))
+                            else:
+                                # self.logger.info('Received chunk! response was: {}, Hand over to parse_response now.format(chunk))
+                                response_packet.extend(chunk)
+                                self._parse_response(response_packet)
                         else:
+                            self.logger.error('Received 0 bytes chunk - ignoring response_packet! chunk was: {}'.format(chunk))
+                    elif self._protocol == 'KW':
+                        self.logger.debug('Received {} bytes chunk of response as hexstring {} and as bytes {}'.format(len(chunk), self._bytes2hexstring(chunk), chunk))
+                        if len(chunk) != 0:
                             # self.logger.info('Received chunk! response was: {}, Hand over to parse_response now.format(chunk))
                             response_packet.extend(chunk)
-                            self._parse_response(response_packet)
-                    else:
-                        self.logger.error('Received 0 bytes chunk - ignoring response_packet! chunk was: {}'.format(chunk))
+                            self._parse_response(response_packet, rcommandcode, read_response)
+                        else:
+                            self.logger.error('Received 0 bytes chunk - ignoring response_packet! chunk was: {}'.format(chunk))
                 except socket.timeout:
                     raise Exception('Error receiving response: time-out')
                 except IOError as io:
@@ -791,34 +845,64 @@ class Viessmann(SmartPlugin):
         # return what we got so far, might be 0
         return totalreadbytes
 
-    def _parse_response(self, response):
+    def _parse_response(self, response, rcommandcode='', read_response=True):
         '''
         Process device response data, try to parse type and value and assign value to associated item
 
         :param response: Data received from device
         :type response: bytearray
+        :param rcommandcode: Commandcode used for request (only needed for KW protocol)
+        :type rcommandcode: str
+        :param read_response: True if command was read command and value is expected, False if only status byte is expected (only needed for KW protocol)
+        :type read_response: bool
         '''
 
-        # A read_response telegram looks like this: ACK (1 byte), startbyte (1 byte), data length in bytes (1 byte), request/response (1 byte), read/write (1 byte), addr (2 byte), amount of valuebytes (1 byte), value (bytes as per last byte), checksum (1 byte)
-        # A write_response telegram looks like this: ACK (1 byte), startbyte (1 byte), data length in bytes (1 byte), request/response (1 byte), read/write (1 byte), addr (2 byte), amount of bytes written (1 byte), checksum (1 byte)
+        if self._protocol == 'P300':
 
-        # Validate checksum
-        checksum = self._calc_checksum(response[1:len(response) - 1])  # first, cut first byte (ACK) and last byte (checksum) and then calculate checksum
-        received_checksum = response[len(response) - 1]
-        if received_checksum != checksum:
-            self.logger.error('Calculated checksum {} does not match received checksum of {}! Ignoring reponse.'.format(checksum, received_checksum))
-            return
+            # A read_response telegram looks like this: ACK (1 byte), startbyte (1 byte), data length in bytes (1 byte), request/response (1 byte), read/write (1 byte), addr (2 byte), amount of valuebytes (1 byte), value (bytes as per last byte), checksum (1 byte)
+            # A write_response telegram looks like this: ACK (1 byte), startbyte (1 byte), data length in bytes (1 byte), request/response (1 byte), read/write (1 byte), addr (2 byte), amount of bytes written (1 byte), checksum (1 byte)
 
-        # Extract command/address, valuebytes and valuebytecount out of response
-        commandcode = response[5:7].hex()
-        responsetypecode = response[3]  # 0x00 = Anfrage, 0x01 = Antwort, 0x03 = Fehler
-        responsedatacode = response[4]  # 0x01 = ReadData, 0x02 = WriteData, 0x07 = Function Call
-        valuebytecount = response[7]
+            # Validate checksum
+            checksum = self._calc_checksum(response[1:len(response) - 1])  # first, cut first byte (ACK) and last byte (checksum) and then calculate checksum
+            received_checksum = response[len(response) - 1]
+            if received_checksum != checksum:
+                self.logger.error('Calculated checksum {} does not match received checksum of {}! Ignoring reponse.'.format(checksum, received_checksum))
+                return
+
+            # Extract command/address, valuebytes and valuebytecount out of response
+            commandcode = response[5:7].hex()
+            responsetypecode = response[3]  # 0x00 = Anfrage, 0x01 = Antwort, 0x03 = Fehler
+            responsedatacode = response[4]  # 0x01 = ReadData, 0x02 = WriteData, 0x07 = Function Call
+            valuebytecount = response[7]
+
+            # Extract databytes out of response
+            rawdatabytes = bytearray()
+            rawdatabytes.extend(response[8:8 + (valuebytecount)])
+        elif self._protocol == 'KW':
+
+            # imitate P300 response code data for easier combined handling afterwards
+            # a read_response telegram consists only of the value bytes
+            # a write_response telegram is 0x00 for OK, 0xXX for error
+            if rcommandcode == '':
+                self.logger.error('trying to parse KW protocol response, but rcommandcode not set in _parse_response. This should not happen...')
+                return
+
+            if read_response:
+                # value response to read request, no error detection (except implausible value)
+                responsedatacode = 1
+            else:
+                # status response to write request
+                responsedatacode = 2
+                if len(rawdatabytes) == 1 and rawdatabytes[0] != 0:
+                    # error if status reply is not 0x00
+                    responsetypecode = 3
+
+            responsetypecode = 1
+            commandcode = self._commandset[rcommandcode]['addr']
+            valuebytecount = len(response)
+            rawdatabytes = response
+
         self.logger.debug('Response decoded to: commandcode: {}, responsedatacode: {}, valuebytecount: {}'.format(commandcode, responsedatacode, valuebytecount))
-
-        # Extract databytes out of response
-        rawdatabytes = bytearray()
-        rawdatabytes.extend(response[8:8 + (valuebytecount)])
         self.logger.debug('Rawdatabytes formatted: {} and unformatted: {}'.format(self._bytes2hexstring(rawdatabytes), rawdatabytes))
 
         # Process response for items if read response and not error
