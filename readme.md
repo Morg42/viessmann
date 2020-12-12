@@ -3,7 +3,7 @@
 #### Version 1.0.0
 
 The Viessmann plugin is designed to connect to a Viessmann heating systems via the Optolink USB adapter to read out and write its parameters.
-Currently the P300 protocol and the V200KO1B,KO2B devices are supportet. Other protocols and devices can easily be added.
+Currently the P300 protocol and the V200KO1B,KO2B devices are supported. Other protocols and devices can easily be added.
 All details of devices and protocols can be read here: https://github.com/openv/openv/wiki/vcontrold
 
 The Viessmann plugin uses a separate commands.py file which contains the different control- (control characters like start sequence, acknowledge etc.) and commandsets for the supported systems.
