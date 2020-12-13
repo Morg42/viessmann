@@ -89,17 +89,17 @@ class Viessmann(SmartPlugin):
         # Load protocol dependent sets
         if self._protocol in commands.controlset and self._protocol in commands.errorset and self._protocol in commands.unitset and self._protocol in commands.returnstatus and self._protocol in commands.setreturnstatus:
             self._controlset = commands.controlset[self._protocol]
-            self.logger.info('Loaded controlset for protocol \'{}\''.format(self._controlset))
+            self.logger.debug('Loaded controlset for protocol \'{}\''.format(self._controlset))
             self._errorset = commands.errorset[self._protocol]
-            self.logger.info('Loaded errors for protocol \'{}\''.format(self._errorset))
+            self.logger.debug('Loaded errors for protocol \'{}\''.format(self._errorset))
             self._unitset = commands.unitset[self._protocol]
-            self.logger.info('Loaded units for protocol \'{}\''.format(self._unitset))
+            self.logger.debug('Loaded units for protocol \'{}\''.format(self._unitset))
             self._devicetypes = commands.devicetypes
-            self.logger.info('Loaded device types for protocol \'{}\''.format(self._devicetypes))
+            self.logger.debug('Loaded device types for protocol \'{}\''.format(self._devicetypes))
             self._returnstatus = commands.returnstatus[self._protocol]
-            self.logger.info('Loaded return status for protocol \'{}\''.format(self._returnstatus))
+            self.logger.debug('Loaded return status for protocol \'{}\''.format(self._returnstatus))
             self._setreturnstatus = commands.setreturnstatus[self._protocol]
-            self.logger.info('Loaded set return status for protocol \'{}\''.format(self._setreturnstatus))
+            self.logger.debug('Loaded set return status for protocol \'{}\''.format(self._setreturnstatus))
         else:
             self.logger.error('Sets for protocol {} could not be found or incomplete!'.format(self._protocol))
             return None
@@ -107,11 +107,11 @@ class Viessmann(SmartPlugin):
         # Load device dependent sets
         if self._heating_type in commands.commandset and self._heating_type in commands.operatingmodes and self._heating_type in commands.systemschemes:
             self._commandset = commands.commandset[self._heating_type]
-            self.logger.info('Loaded commands for heating type \'{}\''.format(self._commandset))
+            self.logger.debug('Loaded commands for heating type \'{}\''.format(self._commandset))
             self._operatingmodes = commands.operatingmodes[self._heating_type]
-            self.logger.info('Loaded operating modes for heating type \'{}\''.format(self._operatingmodes))
+            self.logger.debug('Loaded operating modes for heating type \'{}\''.format(self._operatingmodes))
             self._systemschemes = commands.systemschemes[self._heating_type]
-            self.logger.info('Loaded system schemes for heating type \'{}\''.format(self._systemschemes))
+            self.logger.debug('Loaded system schemes for heating type \'{}\''.format(self._systemschemes))
         else:
             sets = []
             if self._heating_type not in commands.commandset:
@@ -123,6 +123,8 @@ class Viessmann(SmartPlugin):
 
             self.logger.error('Sets {} for heating type {} could not be found!'.format(", ".join(sets), self._heating_type))
             return None
+
+        self.logger.info('Loaded configuration for heating type {} with protocol {}'.format(self._heating_type, self._protocol))
 
         # Init web interface
         self.init_webinterface()
@@ -316,6 +318,8 @@ class Viessmann(SmartPlugin):
         if self._cyclic_update_active:
             self.logger.warning('Triggered cyclic command read, but previous cyclic run is still active. Check device and cyclic configuration (too much/too short?)')
             return
+        else:
+            self.logger.info('Triggering cyclic command read')
 
         # set lock
         self._cyclic_update_active = True
@@ -326,7 +330,7 @@ class Viessmann(SmartPlugin):
             # Is the command already due?
             if entry['nexttime'] <= currenttime:
                 commandname = self._commandname_by_commandcode(commandcode)
-                self.logger.info('Triggering cyclic read command: {}'.format(commandname))
+                self.logger.debug('Triggering cyclic read command: {}'.format(commandname))
                 self._send_read_command(commandname)
                 entry['nexttime'] = currenttime + entry['cycle']
                 read_items += 1
@@ -360,7 +364,7 @@ class Viessmann(SmartPlugin):
 
         self._lock.acquire()
         try:
-            self.logger.info('Connecting ...')
+            self.logger.debug('Connecting to {}...'.format(self._serialport))
             self._serial = serial.Serial()
             self._serial.baudrate = self._controlset['Baudrate']
             self._serial.parity = self._controlset['Parity']
@@ -416,7 +420,7 @@ class Viessmann(SmartPlugin):
         if self._protocol == 'P300':
 
             # if device answers SYNC b'\x16\x00\x00' with b'\x06', comm is initialized
-            self.logger.info('Init Communication....')
+            self.logger.debug('Init Communication....')
             is_initialized = False
             initstringsent = False
             self.logger.debug('send_bytes: Send reset command {}'.format(self._int2bytes(self._controlset['Reset_Command'], 1)))
@@ -447,7 +451,7 @@ class Viessmann(SmartPlugin):
                 readbyte = self._read_bytes(1)
                 self.logger.debug('read_bytes: read {}, last byte is {}'.format(readbyte, self._lastbyte))
 
-            self.logger.info('Communication initialized: {}'.format(is_initialized))
+            self.logger.debug('Communication initialized: {}'.format(is_initialized))
             self._initialized = is_initialized
 
         else:  # at the moment the only other supported protocol is 'KW' which is not stateful
@@ -497,7 +501,7 @@ class Viessmann(SmartPlugin):
         Read all configured timer values from device and create uzsu timer dict
         '''
         if self._application_timer is not []:
-            self.logger.info('Starting timer read commands.')
+            self.logger.debug('Starting timer read commands.')
             for timer_app in self._application_timer:
                 for commandcode in self._application_timer[timer_app]['commandcodes']:
                     commandname = self._commandname_by_commandcode(commandcode)
@@ -644,7 +648,7 @@ class Viessmann(SmartPlugin):
                             valuebytes = self._int2bytes(value, commandvaluebytes)
                             self.logger.debug('Created value bytes for type {} as hexstring: {} and as bytes: {}'.format(commandvalueresult, self._bytes2hexstring(valuebytes), valuebytes))
                         else:
-                            self.logger.error('Type not definied for creating write command bytes')
+                            self.logger.error('Type "{}" not definied for creating write command bytes'.format(commandvalueresult))
                             return False
 
                         # Calculate length of payload (telegram header for write with 5 byte + amount of valuebytes)
@@ -681,13 +685,13 @@ class Viessmann(SmartPlugin):
                         # hand over built packet to send_command
                         self._send_command(packet, packetlen_response, commandname, False)
                     else:
-                        self.logger.error('No valid value to be sent')
+                        self.logger.error('Invalid range - value {} not in range [{}, {}]'.format(value, min_allowed_value, max_allowed_value))
                         return False
                 else:
-                    self.logger.error('No value handed over')
+                    self.logger.error('Command value for command {} is empty, not possible to send (check item, command and unit configuration'.format(commandname))
                     return False
             else:
-                self.logger.error('Command at Heating is not allowed to be sent')
+                self.logger.error('Command {} is not configured for writing'.format(commandname))
                 return False
 
         except Exception as e:
@@ -718,10 +722,11 @@ class Viessmann(SmartPlugin):
         try:
             self._lock.acquire()
             if not self._initialized or (time.time() - 500) > self._lastbytetime:
-                if self._initialized:
-                    self.logger.info('Communication timed out, trying to reestablish communication.')
-                else:
-                    self.logger.warning('Communication no longer initialized, trying to reestablish.')
+                if self._protocol == 'P300':
+                    if self._initialized:
+                        self.logger.debug('Communication timed out, trying to reestablish communication.')
+                    else:
+                        self.logger.info('Communication no longer initialized, trying to reestablish.')
                 self._init_communication()
 
             if self._initialized:
@@ -755,7 +760,6 @@ class Viessmann(SmartPlugin):
                             elif chunk[:1] != self._int2bytes(self._controlset['Acknowledge'], 1):
                                 self.logger.error('Received invalid chunk, not starting with ACK! response was: {}'.format(chunk))
                             else:
-                                # self.logger.info('Received chunk! response was: {}, Hand over to parse_response now.format(chunk))
                                 response_packet.extend(chunk)
                                 self._parse_response(response_packet)
                         else:
@@ -763,11 +767,10 @@ class Viessmann(SmartPlugin):
                     elif self._protocol == 'KW':
                         self.logger.debug('Received {} bytes chunk of response as hexstring {} and as bytes {}'.format(len(chunk), self._bytes2hexstring(chunk), chunk))
                         if len(chunk) != 0:
-                            # self.logger.info('Received chunk! response was: {}, Hand over to parse_response now.format(chunk))
                             response_packet.extend(chunk)
                             self._parse_response(response_packet, rcommandcode, read_response)
                         else:
-                            self.logger.error('Received 0 bytes chunk - ignoring response_packet! chunk was: {}'.format(chunk))
+                            self.logger.error('Received 0 bytes chunk - this probably is a communication error, possibly a wrong datapoint address?')
                 except socket.timeout:
                     raise Exception('Error receiving response: time-out')
                 except IOError as io:
@@ -887,20 +890,23 @@ class Viessmann(SmartPlugin):
                 self.logger.error('trying to parse KW protocol response, but rcommandcode not set in _parse_response. This should not happen...')
                 return
 
+            responsetypecode = 1
+            commandcode = self._commandset[rcommandcode]['addr']
+            valuebytecount = len(response)
+            rawdatabytes = response
+
             if read_response:
-                # value response to read request, no error detection (except implausible value)
+                # value response to read request, error detection by empty = no response
                 responsedatacode = 1
+                if len(rawdatabytes) == 0:
+                    # error, no answer means wrong address (?)
+                    responsetypecode = 3
             else:
                 # status response to write request
                 responsedatacode = 2
                 if len(rawdatabytes) == 1 and rawdatabytes[0] != 0:
                     # error if status reply is not 0x00
                     responsetypecode = 3
-
-            responsetypecode = 1
-            commandcode = self._commandset[rcommandcode]['addr']
-            valuebytecount = len(response)
-            rawdatabytes = response
 
         self.logger.debug('Response decoded to: commandcode: {}, responsedatacode: {}, valuebytecount: {}'.format(commandcode, responsedatacode, valuebytecount))
         self.logger.debug('Rawdatabytes formatted: {} and unformatted: {}'.format(self._bytes2hexstring(rawdatabytes), rawdatabytes))
@@ -920,7 +926,10 @@ class Viessmann(SmartPlugin):
                 commandconf = self._commandset[commandname]
                 commandvaluebytes = commandconf['len']
                 commandunit = commandconf['unit']
-                unitconf = self._unitset[commandunit]
+                unitconf = self._unitset.get(commandunit)
+                if not unitconf:
+                    self.logger.error('Unit configuration not found for unit {} in protocol {}. This is a configuration error in commands.py, please fix.'.format(commandunit, self._protocol))
+                    return
                 commandsigned = unitconf['signed']
                 valuetransform = unitconf['read_value_transform']
                 self.logger.debug('Unit defined to {} with config {}.'.format(commandunit, unitconf))
@@ -1041,7 +1050,7 @@ class Viessmann(SmartPlugin):
 
         # Handling of write command response if not error
         elif responsedatacode == 2 and responsetypecode != 3:
-            self.logger.info('Write request of adress {} successfull writing {} bytes.'.format(commandcode, valuebytecount))
+            self.logger.debug('Write request of adress {} successfull writing {} bytes.'.format(commandcode, valuebytecount))
         else:
             self.logger.error('Write request of adress {} NOT successfull writing {} bytes.'.format(commandcode, valuebytecount))
 
@@ -1407,12 +1416,12 @@ class Viessmann(SmartPlugin):
         except:
             self.mod_http = None
         if self.mod_http is None:
-            self.logger.error("Not initializing the web interface")
+            self.logger.warning("Not initializing the web interface")
             return False
 
         import sys
         if "SmartPluginWebIf" not in list(sys.modules['lib.model.smartplugin'].__dict__):
-            self.logger.warning("Web interface needs SmartHomeNG v1.5 and up. Not initializing the web interface")
+            self.logger.warning("Web interface needs SmartHomeNG v1.5 or later. Not initializing the web interface")
             return False
 
         # set application configuration for cherrypy

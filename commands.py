@@ -407,26 +407,10 @@ unitset = {
         'DA':      {'unit_de': 'Date',              'type': 'date',     'signed': False, 'read_value_transform': 'non'},        # vito unit:
     },
     'KW': {
-# UT -> IS10
-# UTH -> IS100
-# UN -> IS10
-# UT1 -> IU2
-# UT1U -> IU2
-# UTI -> IUINT
-# ST -> IUBOOL, IUNON
-# CO -> IUINT, IUNON
-# COL -> IU1000
-# PR, PR3 -> IU2
-# PR1, PR2 -> IUINT
-# CS -> IU3600
-# CT -> CT
-# RT -> RT
-# BA -> BA
-# SR -> SR
         'BA':      {'unit_de': 'Betriebsart',       'type': 'list',     'signed': False, 'read_value_transform': 'non'},        # vito unit: BA
         'CT':      {'unit_de': 'CycleTime',         'type': 'timer',    'signed': False, 'read_value_transform': 'non'},        # vito unit: CT
-#        'DT':      {'unit_de': 'DeviceType',        'type': 'list',     'signed': False, 'read_value_transform': 'non'},        # vito unit: DT
-#        'ES':      {'unit_de': 'ErrorState',        'type': 'list',     'signed': False, 'read_value_transform': 'non'},        # vito unit: ES
+        'DT':      {'unit_de': 'DeviceType',        'type': 'list',     'signed': False, 'read_value_transform': 'non'},        # vito unit: DT
+        'ES':      {'unit_de': 'ErrorState',        'type': 'list',     'signed': False, 'read_value_transform': 'non'},        # vito unit: ES
         'IU2':     {'unit_de': 'INT unsigned 2',    'type': 'integer',  'signed': False, 'read_value_transform': '2'},          # vito unit: UT1U, PR1
         'IU10':    {'unit_de': 'INT unsigned 10',   'type': 'integer',  'signed': False, 'read_value_transform': '10'},         # vito unit:
         'IU100':   {'unit_de': 'INT unsigned 100',  'type': 'integer',  'signed': False, 'read_value_transform': '100'},        # vito unit:
@@ -434,18 +418,18 @@ unitset = {
         'IU3600':  {'unit_de': 'INT unsigned 3600', 'type': 'integer',  'signed': False, 'read_value_transform': '3600'},       # vito unit: CS
         'IUBOOL':  {'unit_de': 'INT unsigned bool', 'type': 'integer',  'signed': False, 'read_value_transform': 'bool'},       # vito unit:
         'IUINT':   {'unit_de': 'INT unsigned int',  'type': 'integer',  'signed': False, 'read_value_transform': 'int'},        # vito unit:
-#        'IUNON':   {'unit_de': 'INT unsigned non',  'type': 'integer',  'signed': False, 'read_value_transform': 'non'},        # vito unit: UTI, CO
+        'IUNON':   {'unit_de': 'INT unsigned non',  'type': 'integer',  'signed': False, 'read_value_transform': 'non'},        # vito unit: UTI, CO
         'IS2':     {'unit_de': 'INT signed 2',      'type': 'integer',  'signed': True,  'read_value_transform': '2'},          # vito unit: UT1, PR
         'IS10':    {'unit_de': 'INT signed 10',     'type': 'integer',  'signed': True,  'read_value_transform': '10'},         # vito unit: UT, UN
         'IS100':   {'unit_de': 'INT signed 100',    'type': 'integer',  'signed': True,  'read_value_transform': '100'},        # vito unit:
-#        'IS1000':  {'unit_de': 'INT signed 1000',   'type': 'integer',  'signed': True,  'read_value_transform': '1000'},       # vito unit:
-#        'ISNON':   {'unit_de': 'INT signed non',    'type': 'integer',  'signed': True,  'read_value_transform': 'non'},        # vito unit:
+        'IS1000':  {'unit_de': 'INT signed 1000',   'type': 'integer',  'signed': True,  'read_value_transform': '1000'},       # vito unit:
+        'ISNON':   {'unit_de': 'INT signed non',    'type': 'integer',  'signed': True,  'read_value_transform': 'non'},        # vito unit:
         'RT':      {'unit_de': 'ReturnStatus',      'type': 'list',     'signed': False, 'read_value_transform': 'non'},        # vito unit: ST, RT
-#        'SC':      {'unit_de': 'SystemScheme',      'type': 'list',     'signed': False, 'read_value_transform': 'non'},        # vito unit:
-#        'SN':      {'unit_de': 'Sachnummer',        'type': 'serial',   'signed': False, 'read_value_transform': 'non'},        # vito unit:
-#        'SR':      {'unit_de': 'SetReturnStatus',   'type': 'list',     'signed': False, 'read_value_transform': 'non'},        # vito unit:
-#        'TI':      {'unit_de': 'SystemTime',        'type': 'datetime', 'signed': False, 'read_value_transform': 'non'},        # vito unit: TI
-#        'DA':      {'unit_de': 'Date',              'type': 'date',     'signed': False, 'read_value_transform': 'non'},        # vito unit:
+        'SC':      {'unit_de': 'SystemScheme',      'type': 'list',     'signed': False, 'read_value_transform': 'non'},        # vito unit:
+        'SN':      {'unit_de': 'Sachnummer',        'type': 'serial',   'signed': False, 'read_value_transform': 'non'},        # vito unit:
+        'SR':      {'unit_de': 'SetReturnStatus',   'type': 'list',     'signed': False, 'read_value_transform': 'non'},        # vito unit:
+        'TI':      {'unit_de': 'SystemTime',        'type': 'datetime', 'signed': False, 'read_value_transform': 'non'},        # vito unit: TI
+        'DA':      {'unit_de': 'Date',              'type': 'date',     'signed': False, 'read_value_transform': 'non'},        # vito unit:
     }
 }
 
