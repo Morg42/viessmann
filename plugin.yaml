@@ -45,7 +45,7 @@ parameters:
 
     timeout:
         type: num
-        default: 2
+        default: 1.5
         description:
             de: 'Zeitbegrenzung für das Lesen vom seriellen Port in Sekunden'
             en: 'Timeout for serial read operations in seconds'

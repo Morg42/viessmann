@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 #########################################################################
 # Copyright 2020 Michael Wenzel
+# Copyright 2020 Sebastian Helms
 #########################################################################
 #  Viessmann-Plugin for SmartHomeNG.  https://github.com/smarthomeNG//
 #
@@ -371,7 +372,12 @@ class Viessmann(SmartPlugin):
             self._serial.bytesize = self._controlset['Bytesize']
             self._serial.stopbits = self._controlset['Stopbits']
             self._serial.port = self._serialport
-            self._serial.timeout = 1
+            if self._protocol == 'KW':
+                # try to "capture" the 0x05 sync bytes
+                self._serial.timeout = 1.0
+            else:
+                # not too long to prevent lags in communication.
+                self._serial.timeout = 0.5
             self._serial.open()
             self._connected = True
             self.logger.info('Connected to {}'.format(self._serialport))
@@ -397,8 +403,9 @@ class Viessmann(SmartPlugin):
         try:
             self._serial.close()
             self._serial = None
+            self._lock.release()
             self.logger.info('Disconnected')
-        except:
+        except (IOError, RuntimeError):
             pass
 
     def _init_communication(self):
@@ -700,6 +707,34 @@ class Viessmann(SmartPlugin):
 
         return True
 
+    def _get_KW_sync(self):
+        '''
+        Try to get a sync packet (0x05) from heating system to be able to send commands
+
+        :return: True if sync packet received, False otherwise (after retries)
+        :rtype: bool
+        '''
+        if not self._connected or self._protocol != 'KW':
+            return False    # don't even try. We only want to be called by _send_command, which just before executed connect()
+
+        retries = 5
+
+        attempt = 0
+        while attempt < retries:
+            self.logger.debug('Starting sync loop - attempt {}/{}'.format(attempt + 1, retries))
+
+            self._serial.reset_input_buffer()
+            chunk = self._read_bytes(1)
+            if chunk == b'\x05':
+                self.logger.debug('Got sync. Commencing command send')
+                return True
+            time.sleep(1)
+            attempt = attempt + 1
+        self.logger.error('Sync not acquired after {} attempts.'.format(attempt))
+        self._disconnect()
+
+        return False
+
     def _send_command(self, packet, packetlen_response, rcommandcode='', read_response=True):
         '''
         Send command sequence to device
@@ -713,6 +748,7 @@ class Viessmann(SmartPlugin):
         :param read_response: True if command was read command and value is expected, False if only status byte is expected (only needed for KW protocol)
         :type read_response: bool
         '''
+
         if not self._connected:
             self.logger.error('Not connected, trying to reconnect.')
             if not self._connect():
@@ -733,11 +769,14 @@ class Viessmann(SmartPlugin):
                 # send query
                 try:
                     if self._protocol == 'KW':
-                        # wait for 0x05 from device
-                        self._read_bytes(1)
+                        # try to get sync, exit if it fails
+                        if not self._get_KW_sync():
+                            return
+
                     self._send_bytes(packet)
                     self.logger.debug('Successfully sent packet: {}'.format(self._bytes2hexstring(packet)))
-                    time.sleep(0.1)
+                    if self._protocol != 'KW':
+                        time.sleep(0.1)
                 except IOError as io:
                     raise IOError('IO Error: {}'.format(io))
                 except Exception as e:
@@ -785,8 +824,11 @@ class Viessmann(SmartPlugin):
             self._disconnect()
         except Exception as e:
             self.logger.error('send_command failed with error: {}.'.format(e))
-        finally:
+
+        try:
             self._lock.release()
+        except RuntimeError:
+            pass
 
     def _send_bytes(self, packet):
         '''
@@ -891,7 +933,7 @@ class Viessmann(SmartPlugin):
                 return
 
             responsetypecode = 1
-            commandcode = self._commandset[rcommandcode]['addr']
+            commandcode = self._commandset[rcommandcode]['addr'].lower()
             valuebytecount = len(response)
             rawdatabytes = response
 
@@ -908,7 +950,7 @@ class Viessmann(SmartPlugin):
                     # error if status reply is not 0x00
                     responsetypecode = 3
 
-        self.logger.debug('Response decoded to: commandcode: {}, responsedatacode: {}, valuebytecount: {}'.format(commandcode, responsedatacode, valuebytecount))
+        self.logger.debug('Response decoded to: commandcode: {}, responsedatacode: {}, valuebytecount: {}, responsetypecode: {}'.format(commandcode, responsedatacode, valuebytecount, responsetypecode))
         self.logger.debug('Rawdatabytes formatted: {} and unformatted: {}'.format(self._bytes2hexstring(rawdatabytes), rawdatabytes))
 
         # Process response for items if read response and not error
@@ -964,7 +1006,7 @@ class Viessmann(SmartPlugin):
                                 child(timer[3]['An'], self.get_shortname())
                             elif child_item.endswith('aus4'):
                                 child(timer[3]['Aus'], self.get_shortname())
-                    except:
+                    except KeyError:
                         self.logger.debug('No child items for timer found (use timer.structs) or value no valid')
 
                 elif commandunit == 'TI':
@@ -1012,7 +1054,11 @@ class Viessmann(SmartPlugin):
                     self.logger.debug('Matched command {} and read transformed value {} (integer raw value was {}) and byte length {}.'.format(commandname, value, rawvalue, commandvaluebytes))
 
                 # Update item
+                self.logger.debug('Updating item {} with value {}'.format(item, value))
                 item(value, self.get_shortname())
+            else:
+                if commandcode not in self._timer_cmds:
+                    self.logger.info('Got response to a command not requested: {}'.format(commandcode))
 
             # Process response for timers in timer-dict using the commandcode
             if commandcode in self._timer_cmds:
@@ -1073,7 +1119,7 @@ class Viessmann(SmartPlugin):
         try:
             sunset = shitems.return_item('env.location.sunset')().strftime("%H:%M")
             sunrise = shitems.return_item('env.location.sunrise')().strftime("%H:%M")
-        except:
+        except ValueError:
             sunset = '21:00'
             sunrise = '06:00'
 
@@ -1411,8 +1457,7 @@ class Viessmann(SmartPlugin):
         This method is only needed if the plugin is implementing a web interface
         """
         try:
-            self.mod_http = Modules.get_instance().get_module(
-                'http')  # try/except to handle running in a core version that does not support modules
+            self.mod_http = Modules.get_instance().get_module('http')  # try/except to handle running in a core version that does not support modules
         except:
             self.mod_http = None
         if self.mod_http is None:
