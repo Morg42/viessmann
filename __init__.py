@@ -1119,7 +1119,7 @@ class Viessmann(SmartPlugin):
         try:
             sunset = shitems.return_item('env.location.sunset')().strftime("%H:%M")
             sunrise = shitems.return_item('env.location.sunrise')().strftime("%H:%M")
-        except ValueError:
+        except (AttributeError, ValueError):
             sunset = '21:00'
             sunrise = '06:00'
 
