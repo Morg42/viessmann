@@ -1365,8 +1365,8 @@ class Viessmann(SmartPlugin):
         '''
         if transform == 'bool':
             return bool(value)
-        elif transform.isdigit():
-            return round(value / int(transform), 2)
+        elif self.isfloat(transform):
+            return round(value / float(transform), 2)
         else:
             return int(value)
 
@@ -1445,6 +1445,20 @@ class Viessmann(SmartPlugin):
             if self._commandset[commandname]['addr'].lower() == commandcode:
                 return commandname
         return None
+
+    def isfloat(self, value):
+        '''
+        Test if string is decimal number
+
+        :param value: expression to test
+        :type value: str
+        :return: True if value can be converted to a float, False otherwise
+        '''
+        try:
+            float(value)
+            return True
+        except ValueError:
+            return False
 
     #
     # webinterface

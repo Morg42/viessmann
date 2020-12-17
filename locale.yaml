@@ -1,11 +1,18 @@
-# translations for the web interface
 plugin_translations:
     # Translations for the plugin specially for the web interface
-    'Wert 2':         {'de': '=', 'en': 'Value 2'}
-    'Wert 4':         {'de': '=', 'en': 'Value 4'}
+    'Viessmann Items':     {'de': '=', 'en': '='}
+    'AktiveDatenpunkte':   {'de': '=', 'en': 'Used Command Codes'}
+    'Serieller Port':      {'de': '=', 'en': 'Serialport'}
+    'Anzahl Items':        {'de': '=', 'en': 'Item count'}
+    'Heizungstyp':         {'de': '=', 'en': 'Heating Type'}
+    'Verbunden':           {'de': '=', 'en': 'Connected'}
+    'Protokoll':           {'de': '=', 'en': 'Protocol'}
+    'Verbindung aktiv':    {'de': '=', 'en': 'Initialized'}
+    'Datenpunkt':          {'de': '=', 'en': 'Code'}
+    'Befehlsname':         {'de': '=', 'en': 'Command name'}
+    'Typ':                 {'de': '=', 'en': 'Type'}
+    'Wert':                {'de': '=', 'en': 'Value'}
+    'Item':                {'de': '=', 'en': '='}
 
-    # Alternative format for translations of longer texts:
-    'Hier kommt der Inhalt des Webinterfaces hin.':
-        de: '='
-        en: 'Here goes the content of the web interface.'
-
+    'Letzte Aktualisierung': {'de': '=', 'en': 'Last update'}
+    'Items für diese Instanz definiert': {'de': '=', 'en': 'items defined for this instance'}
