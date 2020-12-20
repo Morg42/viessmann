@@ -45,7 +45,7 @@ class Viessmann(SmartPlugin):
     '''
     ALLOW_MULTIINSTANCE = False
 
-    PLUGIN_VERSION = '1.1.0'
+    PLUGIN_VERSION = '1.2.0'
 
     #
     # public methods
@@ -134,8 +134,8 @@ class Viessmann(SmartPlugin):
         '''
         Run method for the plugin
         '''
-        self._connect()
         self.alive = True
+        self._connect()
         self._read_initial_values()
         self._read_timers()
 
@@ -143,9 +143,9 @@ class Viessmann(SmartPlugin):
         '''
         Stop method for the plugin
         '''
+        self.alive = False
         if self.scheduler_get('cyclic'):
             self.scheduler_remove('cyclic')
-        self.alive = False
         self._disconnect()
 
     def parse_item(self, item):
@@ -264,7 +264,7 @@ class Viessmann(SmartPlugin):
                     commandname = self.get_iattr_value(item.conf, 'viess_send')
                 value = item()
                 self.logger.debug('Got item value to be written: {} on command name {}.'.format(value, commandname))
-                if not self._send_write_command(commandname, value):
+                if not self._send_command(commandname, value):
                     # create_write_command() liefert False, wenn das Schreiben fehlgeschlagen ist
                     # -> dann auch keine weitere Verarbeitung
                     self.logger.debug("Write for {} with value {} failed, reverting value, canceling followup actions".format(commandname, value))
@@ -279,7 +279,7 @@ class Viessmann(SmartPlugin):
                     if readcommandname is not None and readafterwrite is not None:
                         aw = float(readafterwrite)
                         time.sleep(aw)
-                        self._send_read_command(readcommandname)
+                        self._send_command(readcommandname)
 
                 # If commands should be triggered after this write
                 if self.has_iattr(item.conf, 'viess_trigger'):
@@ -297,7 +297,7 @@ class Viessmann(SmartPlugin):
                             if triggername is not None and readafterwrite is not None:
                                 self.logger.debug('Triggering command {} after write for item {}'.format(triggername, item))
                                 time.sleep(tdelay)
-                                self._send_read_command(triggername)
+                                self._send_command(triggername)
 
             elif self.has_iattr(item.conf, 'viess_timer'):
                 timer_app = self.get_iattr_value(item.conf, 'viess_timer')
@@ -326,15 +326,34 @@ class Viessmann(SmartPlugin):
         self._cyclic_update_active = True
         currenttime = time.time()
         read_items = 0
+        todo = []
         for commandcode in list(self._cyclic_cmds.keys()):
+
             entry = self._cyclic_cmds[commandcode]
             # Is the command already due?
             if entry['nexttime'] <= currenttime:
+                todo.append(commandcode)
+
+        if self._protocol == 'KW':
+            # see if we got to do anything - maybe no items are due to be read?
+            if len(todo) > 0:
+                self._KW_send_multiple_read_commands(todo)
+                for addr in todo:
+                    self._cyclic_cmds[addr]['nexttime'] = currenttime + self._cyclic_cmds[addr]['cycle']
+                read_items = len(todo)
+        else:
+            for addr in todo:
+                # as this loop can take considerable time, repeatedly check if shng wants to stop
+                if not self.alive:
+                    self.logger.info("shng issued stop command, canceling cyclic read.")
+                    return
+
                 commandname = self._commandname_by_commandcode(commandcode)
                 self.logger.debug('Triggering cyclic read command: {}'.format(commandname))
-                self._send_read_command(commandname)
+                self._send_command(commandname)
                 entry['nexttime'] = currenttime + entry['cycle']
                 read_items += 1
+
         self._cyclic_update_active = False
         if read_items:
             self.logger.debug("cyclic command read took {:.1f} seconds for {} items".format(time.time() - currenttime, read_items))
@@ -346,7 +365,7 @@ class Viessmann(SmartPlugin):
         for commandcode in list(self._params.keys()):
             commandname = self._commandname_by_commandcode(commandcode)
             self.logger.debug('Triggering read command: {} for requested value update'.format(commandname))
-            self._send_read_command(commandname)
+            self._send_command(commandname)
 
     #
     # initialization methods
@@ -360,6 +379,9 @@ class Viessmann(SmartPlugin):
         :return: Returns True if connection was established, False otherwise
         :rtype: bool
         '''
+        if not self.alive:
+            return False
+
         if self._connected and self._serial:
             return True
 
@@ -471,6 +493,9 @@ class Viessmann(SmartPlugin):
         '''
         Setup the scheduler to handle cyclic read commands and find the proper time for the cycle.
         '''
+        if not self.alive:
+            return
+
         shortestcycle = -1
         for commandname in list(self._cyclic_cmds.keys()):
             entry = self._cyclic_cmds[commandname]
@@ -492,10 +517,13 @@ class Viessmann(SmartPlugin):
         '''
         if self._init_cmds != []:
             self.logger.info('Starting initial read commands.')
-            for commandcode in self._init_cmds:
-                commandname = self._commandname_by_commandcode(commandcode)
-                self.logger.debug('send_init_commands {}.'.format(commandname))
-                self._send_read_command(commandname)
+            if self._protocol == 'KW':
+                self._KW_send_multiple_read_commands(self._init_cmds)
+            else:
+                for commandcode in self._init_cmds:
+                    commandname = self._commandname_by_commandcode(commandcode)
+                    self.logger.debug('send_init_commands {}.'.format(commandname))
+                    self._send_command(commandname)
             self._initread = True
             self.logger.debug('self._initread = {}.'.format(self._initread))
 
@@ -513,27 +541,157 @@ class Viessmann(SmartPlugin):
                 for commandcode in self._application_timer[timer_app]['commandcodes']:
                     commandname = self._commandname_by_commandcode(commandcode)
                     self.logger.debug('send_timer_commands {}.'.format(commandname))
-                    self._send_read_command(commandname)
+                    self._send_command(commandname)
             self._timerread = True
             self.logger.debug('Timer Readout done = {}.'.format(self._timerread))
             self._viess_dict_to_uzsu_dict()
 
-    def _send_read_command(self, commandname):
+    def _build_valuebytes_from_value(self, value, commandconf):
         '''
-        Create formatted command sequence from command name and send to device
+        Convert value to formatted bytearray for write commands
+        :param value: Value to send
+        :param commandconf: configuration set for requested command
+        :type commandconf: dict
+        :return: bytearray with value if successful, None if error
+        '''
+        try:
+            commandvaluebytes = commandconf['len']
+            commandunit = commandconf['unit']
+            set_allowed = bool(commandconf['set'])
+            if 'min_value' in commandconf:
+                min_allowed_value = commandconf['min_value']
+            else:
+                min_allowed_value = None
+            if 'max_value' in commandconf:
+                max_allowed_value = commandconf['max_value']
+            else:
+                max_allowed_value = None
+        except KeyError:
+            self.logger.error('Error in command configuration {}, aborting'.format(commandconf))
+            return None
+
+        if commandunit == 'BA':
+
+            # try to convert BA string to byte value, setting str values will fail
+            # this will not work properly if multiple entries have the same value!
+            try:
+                value = int(dict(map(reversed, self._operatingmodes.items()))[value])
+                commandunit = 'IUNON'
+            except KeyError:
+                # value doesn't exist in operatingmodes. don't know what to do
+                self.logger.error('Value {} not defined in operating modes for device {}'.format(value, self._heating_type))
+                return None
+
+        try:
+            unitconf = self._unitset[commandunit]
+        except KeyError:
+            self.logger.error('Error: unit {} not found in unit set {}'.format(commandunit, self._unitset))
+            return None
+
+        try:
+            commandvalueresult = unitconf['type']
+            commandtransform = unitconf['read_value_transform']
+        except KeyError:
+            self.logger.error('Error in unit configuration {} for unit {}, aborting'.format(unitconf, commandunit))
+            return None
+
+        self.logger.debug('Unit defined to {} with config{}.'.format(commandunit, unitconf))
+
+        # check if writing is allowed for this address
+        if not set_allowed:
+            self.logger.error('Command {} is not configured for writing'.format(self._commandname_by_commandcode(commandconf['addr'])))
+            return None
+
+        # check if value is empty
+        if value is None or value == '':
+            self.logger.error('Command value for command {} is empty, not possible to send (check item, command and unit configuration'.format(self._commandname_by_commandcode(commandconf['addr'])))
+            return None
+
+        # check if value to be written is in allowed range
+        if (min_allowed_value is not None and min_allowed_value > value) or (max_allowed_value is not None and max_allowed_value < value):
+            self.logger.error('Invalid range - value {} not in range [{}, {}]'.format(value, min_allowed_value, max_allowed_value))
+            return None
+
+        try:
+            # Create valuebytes
+            if commandvalueresult == 'datetime' or commandvalueresult == 'date':
+                try:
+                    datestring = dateutil.parser.isoparse(value).strftime("%Y%m%d%w%H%M%S")
+                    # Viessmann erwartet 2 digits für Wochentag, daher wird hier noch eine 0 eingefügt
+                    datestring = datestring[:8] + '0' + datestring[8:]
+                    valuebytes = bytes.fromhex(datestring)
+                    self.logger.debug('Created value bytes for type {} as bytes: {}'.format(commandvalueresult, valuebytes))
+                except Exception as e:
+                    self.logger.error('Incorrect data format, YYYY-MM-DD expected; Error: {}'.format(e))
+                    return None
+            elif commandvalueresult == 'timer':
+                try:
+                    times = ""
+                    for switching_time in value:
+                        an = self._encode_timer(switching_time["An"])
+                        aus = self._encode_timer(switching_time["Aus"])
+                        # times += f"{an:02x}{aus:02x}"
+                        times += "{:02x}".format(an) + "{:02x}".format(aus)
+                    valuebytes = bytes.fromhex(times)
+                    self.logger.debug('Created value bytes for type {} as hexstring: {} and as bytes: {}'.format(commandvalueresult, self._bytes2hexstring(valuebytes), valuebytes))
+                except Exception as e:
+                    self.logger.error('Incorrect data format, (An: hh:mm Aus: hh:mm) expected; Error: {}'.format(e))
+                    return None
+            elif commandvalueresult == 'integer' or commandvalueresult == 'list':
+                if commandtransform == 'int':
+                    value = self._value_transform_write(value, commandtransform)
+                    self.logger.debug('Transformed value using method {} to {}'.format(commandtransform, value))
+                elif commandtransform == 'bool':
+                    value = bool(value)
+                else:
+                    value = int(value)
+                valuebytes = self._int2bytes(value, commandvaluebytes)
+                self.logger.debug('Created value bytes for type {} as hexstring: {} and as bytes: {}'.format(commandvalueresult, self._bytes2hexstring(valuebytes), valuebytes))
+            else:
+                self.logger.error('Type "{}" not definied for creating write command bytes'.format(commandvalueresult))
+                return None
+        except Exception as e:
+            self.logger.debug('_build_valuebytes_from_value failed with unexpected error: {}.'.format(e))
+            return None
+
+        return valuebytes
+
+    def _build_command_packet(self, commandname, value=None, KWFollowUp=False):
+        '''
+        Create formatted command sequence from command name. If value is None, a read packet will be built, a write packet otherwise
 
         :param commandname: Command for which to create command sequence as defined in "commands.py"
         :type commandname: str
+        :param value: Write value if command is to be written
+        :param KWFollowUp: create read sequence for KW protocol if multiple read commands will be sent without individual sync
+        :type KWFollowUp: bool
+        :return: tuple of (command sequence, expected response len), (None, 0) if error occured
+        :rtype: tuple (bytearray, int)
         '''
 
-        # A read_request telegram looks like this: ACK (1 byte), startbyte (1 byte), data length in bytes (1 byte), request/response (1 byte), read/write (1 byte), addr (2 byte), amount of value bytes expected in answer (1 byte), checksum (1 byte)
-        self.logger.debug('Got a new read job: Command {}'.format(commandname))
+        # A read_request telegram looks like this:
+        # P300: ACK (1 byte), startbyte (1 byte), data length in bytes (1 byte), request/response (1 byte), read/write (1 byte), addr (2 byte), amount of value bytes expected in answer (1 byte), checksum (1 byte)
+        # KW: startbyte (1 byte), read/write (1 byte), addr (2 bytes), amount of value bytes expected in answer (1 byte)
+        # A write_request telegram looks like this:
+        # P300: ACK (1 byte), startbyte (1 byte), data length in bytes (1 byte), request/response (1 byte), read/write (1 byte), addr (2 byte), amount of bytes to be written (1 byte), value (bytes as per last byte), checksum (1 byte)
+        # KW: startbyte (1 byte), read/write (1 byte), addr (2 bytes), length of value (1 byte), value bytes (1-4 bytes)
+
+        write = value is not None
+        self.logger.debug('Build {} packet for command {}'.format('write' if write else 'read', commandname))
 
         # Get command config
         commandconf = self._commandset[commandname]
-        self.logger.debug('Command config: {}'.format(commandconf))
         commandcode = (commandconf['addr']).lower()
         commandvaluebytes = commandconf['len']
+
+        if write:
+            valuebytes = self._build_valuebytes_from_value(value, commandconf)
+            if not valuebytes:
+                return (None, 0)
+
+            # Calculate length of payload (telegram header for write with x byte + amount of valuebytes)
+            payloadlength = int(self._controlset['Command_bytes_write']) + int(commandvaluebytes)
+            self.logger.debug('Payload length is: {} bytes.'.format(payloadlength))
 
         # Build packet for read commands
         #
@@ -546,208 +704,102 @@ class Viessmann(SmartPlugin):
         # Later additions of other protocols (like GWG) might have to bring a second
         # code path for proper processing
         packet = bytearray()
-        packet.extend(self._int2bytes(self._controlset['StartByte'], 1))
+        if not KWFollowUp:
+            packet.extend(self._int2bytes(self._controlset['StartByte'], 1))
         if self._protocol == 'P300':
-            packet.extend(self._int2bytes(self._controlset['Command_bytes_read'], 1))
+            if write:
+                packet.extend(self._int2bytes(payloadlength, 1))
+            else:
+                packet.extend(self._int2bytes(self._controlset['Command_bytes_read'], 1))
             packet.extend(self._int2bytes(self._controlset['Request'], 1))
-        packet.extend(self._int2bytes(self._controlset['Read'], 1))
+
+        if write:
+            packet.extend(self._int2bytes(self._controlset['Write'], 1))
+        else:
+            packet.extend(self._int2bytes(self._controlset['Read'], 1))
         packet.extend(bytes.fromhex(commandcode))
         packet.extend(self._int2bytes(commandvaluebytes, 1))
+        if write:
+            packet.extend(valuebytes)
         if self._protocol == 'P300':
             packet.extend(self._int2bytes(self._calc_checksum(packet), 1))
-        self.logger.debug('Preparing command {} with packet to be sent as hexstring: {} and as bytes: {}'.format(commandname, self._bytes2hexstring(packet), packet))
+
         if self._protocol == 'P300':
-            packetlen_response = int(self._controlset['Command_bytes_read']) + 4 + int(commandvaluebytes)
+            responselen = int(self._controlset['Command_bytes_read']) + 4 + (0 if write else int(commandvaluebytes))
         else:
-            packetlen_response = int(commandvaluebytes)
+            responselen = 1 if write else int(commandvaluebytes)
 
-        # hand over built packet to send_command
-        self._send_command(packet, packetlen_response, commandname)
+        if write:
+            self.logger.debug('Created command {} to be sent as hexstring: {} and as bytes: {} with value {} (transformed to value byte \'{}\')'.format(commandname, self._bytes2hexstring(packet), packet, value, self._bytes2hexstring(valuebytes)))
+        else:
+            self.logger.debug('Created command {} to be sent as hexstring: {} and as bytes: {}'.format(commandname, self._bytes2hexstring(packet), packet))
 
-    def _send_write_command(self, commandname, value=None):
+        return (packet, responselen)
+
+    def _send_command(self, commandname, value=None):
         '''
         Create formatted command sequence from command name and send to device
 
+        Note: The implementation detail results in "write if value present, read if value is None". 
+              I have not found anything wrong with this; if any use case needs a specific read/write
+              selection, please tell me.
+
         :param commandname: Command for which to create command sequence as defined in "commands.py"
         :type commandname: str
-        :param value: Value to write to device, None if not applicable
-        :return: Return True, if write was successfully acknowledged by device, False otherwise
-        :rtype: bool
+        :param value: Value to write to device, None if command is read command
         '''
 
-        # A write_request telegram looks like this: ACK (1 byte), startbyte (1 byte), data length in bytes (1 byte), request/response (1 byte), read/write (1 byte), addr (2 byte), amount of bytes to be written (1 byte), value (bytes as per last byte), checksum (1 byte)
-        self.logger.debug('Got a new write job: Command {} with value {}'.format(commandname, value))
-
-        # Get command config
-        commandconf = self._commandset[commandname]
-        self.logger.debug('Command config: {}'.format(commandconf))
-        commandcode = (commandconf['addr']).lower()
-        commandvaluebytes = commandconf['len']
-        commandunit = commandconf['unit']
-
-        if commandunit == 'BA':
-
-            # try to convert BA string to byte value, setting str values will fail
-            # this will not work properly if multiple entries have the same value!
-            try:
-                value = int(dict(map(reversed, self._operatingmodes.items()))[value])
-                commandunit = 'IUNON'
-                commandsigned = False
-            except KeyError:
-                # value doesn't exist in operatingmodes. don't know what to do
-                self.logger.error('Value {} not defined in operating modes for device {}'.format(value, self._heating_type))
-                return False
-
-        set_allowed = bool(commandconf['set'])
-        unitconf = self._unitset[commandunit]
-        self.logger.debug('Unit defined to {} with config{}.'.format(commandunit, unitconf))
-        commandvalueresult = unitconf['type']
-        commandsigned = unitconf['signed']
-        commandtransform = unitconf['read_value_transform']
-        if 'min_value' in commandconf:
-            min_allowed_value = commandconf['min_value']
+        if value is not None:
+            self.logger.debug('Got a new write job: Command {} with value {}'.format(commandname, value))
         else:
-            min_allowed_value = None
-        if 'max_value' in commandconf:
-            max_allowed_value = commandconf['max_value']
-        else:
-            max_allowed_value = None
+            self.logger.debug('Got a new read job: Command {}'.format(commandname))
 
-        try:
-            # check if command is allowed to write
-            if set_allowed:
-                # check, if value has content
-                if value is not None and value != '':
-                    # check, if values to be written are in allowed range or None
-                    if (min_allowed_value is None or min_allowed_value <= value) and (max_allowed_value is None or max_allowed_value >= value):
-                        # Create valuebytes
-                        if commandvalueresult == 'datetime' or commandvalueresult == 'date':
-                            try:
-                                datestring = dateutil.parser.isoparse(value).strftime("%Y%m%d%w%H%M%S")
-                                # Viessmann erwartet 2 digits für Wochentag, daher wird hier noch eine 0 eingefügt
-                                datestring = datestring[:8] + '0' + datestring[8:]
-                                valuebytes = bytes.fromhex(datestring)
-                                self.logger.debug('Created value bytes for type {} as bytes: {}'.format(commandvalueresult, valuebytes))
-                            except Exception as e:
-                                self.logger.error('Incorrect data format, YYYY-MM-DD expected; Error: {}'.format(e))
-                                return False
-                        elif commandvalueresult == 'timer':
-                            try:
-                                times = ""
-                                for switching_time in value:
-                                    an = self._encode_timer(switching_time["An"])
-                                    aus = self._encode_timer(switching_time["Aus"])
-                                    # times += f"{an:02x}{aus:02x}"
-                                    times += "{:02x}".format(an) + "{:02x}".format(aus)
-                                valuebytes = bytes.fromhex(times)
-                                self.logger.debug('Created value bytes for type {} as hexstring: {} and as bytes: {}'.format(commandvalueresult, self._bytes2hexstring(valuebytes), valuebytes))
-                            except Exception as e:
-                                self.logger.error('Incorrect data format, (An: hh:mm Aus: hh:mm) expected; Error: {}'.format(e))
-                                return False
-                        elif commandvalueresult == 'integer' or commandvalueresult == 'list':
-                            if commandtransform == 'int':
-                                value = self._value_transform_write(value, commandtransform)
-                                self.logger.debug('Transformed value using method {} to {}'.format(commandtransform, value))
-                            elif commandtransform == 'bool':
-                                value = bool(value)
-                            else:
-                                value = int(value)
-                            valuebytes = self._int2bytes(value, commandvaluebytes)
-                            self.logger.debug('Created value bytes for type {} as hexstring: {} and as bytes: {}'.format(commandvalueresult, self._bytes2hexstring(valuebytes), valuebytes))
-                        else:
-                            self.logger.error('Type "{}" not definied for creating write command bytes'.format(commandvalueresult))
-                            return False
+        # Build packet with value bytes for write commands
+        (packet, responselen) = self._build_command_packet(commandname, value)
 
-                        # Calculate length of payload (telegram header for write with 5 byte + amount of valuebytes)
-                        payloadlength = int(self._controlset['Command_bytes_write']) + int(commandvaluebytes)
-                        self.logger.debug('Payload length is: {} bytes.'.format(payloadlength))
-
-                        # Build packet with value bytes for write commands
-                        #
-                        # at the moment this only has to differentiate between protocols P300 and KW
-                        # these are basically similar, only P300 is an evolution of KW adding
-                        # stateful connections, command length and checksum
-                        #
-                        # so for the time being the easy way is one code path for both protocols which
-                        # omits P300 elements from the built byte string.
-                        # Later additions of other protocols (like GWG) might have to bring a second
-                        # code path for proper processing
-                        packet = bytearray()
-                        packet.extend(self._int2bytes(self._controlset['StartByte'], 1))
-                        if self._protocol == 'P300':
-                            packet.extend(self._int2bytes(payloadlength, 1))
-                            packet.extend(self._int2bytes(self._controlset['Request'], 1))
-                        packet.extend(self._int2bytes(self._controlset['Write'], 1))
-                        packet.extend(bytes.fromhex(commandcode))
-                        packet.extend(self._int2bytes(commandvaluebytes, 1, commandsigned))
-                        packet.extend(valuebytes)
-                        if self._protocol == 'P300':
-                            packet.extend(self._int2bytes(self._calc_checksum(packet), 1))
-                        self.logger.debug('Preparing command {} with value {} (transformed to value byte \'{}\') to be sent as packet {}.'.format(commandname, value, self._bytes2hexstring(valuebytes), self._bytes2hexstring(packet)))
-                        if self._protocol == 'P300':
-                            packetlen_response = int(self._controlset['Command_bytes_read']) + 4
-                        else:
-                            packetlen_response = 1
-
-                        # hand over built packet to send_command
-                        self._send_command(packet, packetlen_response, commandname, False)
-                    else:
-                        self.logger.error('Invalid range - value {} not in range [{}, {}]'.format(value, min_allowed_value, max_allowed_value))
-                        return False
-                else:
-                    self.logger.error('Command value for command {} is empty, not possible to send (check item, command and unit configuration'.format(commandname))
-                    return False
-            else:
-                self.logger.error('Command {} is not configured for writing'.format(commandname))
-                return False
-
-        except Exception as e:
-            self.logger.debug('create_write_command failed with error: {}.'.format(e))
+        # quit if no packet (error on packet build)
+        if not packet:
             return False
 
-        return True
+        if value is not None and self._protocol == 'KW':
+            read_response = False
+        else:
+            read_response = True
 
-    def _get_KW_sync(self):
+        # hand over built packet to send_command_packet
+        result = self._send_command_packet(packet, responselen, commandname, read_response)
+
+        return result
+
+    def _KW_send_multiple_read_commands(self, commandcodes):
         '''
-        Try to get a sync packet (0x05) from heating system to be able to send commands
+        Takes list of commandnames, builds all command packets and tries to send them in one go.
+        This only works for read commands and only with KW protocol. 
+        On error the whole remaining read process is aborted, no retries or continuation is attempted.
 
-        :return: True if sync packet received, False otherwise (after retries)
-        :rtype: bool
+        :param commandnames: List of commands for which to create command sequence as defined in "commands.py"
+        :type commandname: str
         '''
-        if not self._connected or self._protocol != 'KW':
-            return False    # don't even try. We only want to be called by _send_command, which just before executed connect()
 
-        retries = 5
+        if self._protocol != 'KW':
+            self.logger.error('Called _KW_send_multiple_read_commands, but protocol is {}. This shouldn''t happen...'.format(self._protocol))
+            return
 
-        attempt = 0
-        while attempt < retries:
-            self.logger.debug('Starting sync loop - attempt {}/{}'.format(attempt + 1, retries))
+        self.logger.debug('Got a new bulk read job: Commands {}'.format(commandcodes))
 
-            self._serial.reset_input_buffer()
-            chunk = self._read_bytes(1)
-            if chunk == b'\x05':
-                self.logger.debug('Got sync. Commencing command send')
-                return True
-            time.sleep(1)
-            attempt = attempt + 1
-        self.logger.error('Sync not acquired after {} attempts.'.format(attempt))
-        self._disconnect()
+        bulk = {}
 
-        return False
+        # Build packets with value bytes for write commands
+        for addr in commandcodes:
+            commandname = self._commandname_by_commandcode(addr)
+            (packet, responselen) = self._build_command_packet(commandname, None, True)
 
-    def _send_command(self, packet, packetlen_response, rcommandcode='', read_response=True):
-        '''
-        Send command sequence to device
+            if packet:
+                bulk[addr] = {'packet': packet, 'responselen': responselen, 'command': commandname}
 
-        :param packet: Command sequence to send
-        :type packet: bytearray
-        :param packetlen_response: number of bytes expected in reply
-        :type packetlen_response: int
-        :param rcommandcode: Commandcode used for request (only needed for KW protocol)
-        :type rcommandcode: str
-        :param read_response: True if command was read command and value is expected, False if only status byte is expected (only needed for KW protocol)
-        :type read_response: bool
-        '''
+        # quit if no packet (error on packet build)
+        if not bulk:
+            return
 
         if not self._connected:
             self.logger.error('Not connected, trying to reconnect.')
@@ -755,8 +807,138 @@ class Viessmann(SmartPlugin):
                 self.logger.error('Could not connect to serial device')
                 return
 
+        self._lock.acquire()
         try:
-            self._lock.acquire()
+            self._init_communication()
+
+            replies = {}
+
+            if not self._KW_get_sync():
+                return
+
+            first_cmd = True
+            first_packet = bytearray(self._int2bytes(self._controlset['StartByte'], 1))
+
+            for addr in bulk.keys():
+
+                if first_cmd:
+                    # make sure that the first sent packet has the StartByte (0x01) lead byte set
+                    # this way the first packet actually sent has the start byte, regardless of bulk.keys() order
+                    first_packet.extend(bulk[addr]['packet'])
+                    bulk[addr]['packet'] = first_packet
+                    first_cmd = False
+
+                # send query
+                try:
+                    self._send_bytes(bulk[addr]['packet'])
+                    self.logger.debug('Successfully sent packet: {}'.format(self._bytes2hexstring(bulk[addr]['packet'])))
+                except IOError as io:
+                    raise IOError('IO Error: {}'.format(io))
+                    return
+                except Exception as e:
+                    raise Exception('Exception while sending: {}'.format(e))
+                    return
+
+                # receive response
+                replies[addr] = bytearray()
+                try:
+                    self.logger.debug('Trying to receive {} bytes of the response.'.format(bulk[addr]['responselen']))
+                    chunk = self._read_bytes(bulk[addr]['responselen'])
+
+                    self.logger.debug('Received {} bytes chunk of response as hexstring {} and as bytes {}'.format(len(chunk), self._bytes2hexstring(chunk), chunk))
+                    if len(chunk) != 0:
+                        replies[addr].extend(chunk)
+                    else:
+                        self.logger.error('Received 0 bytes chunk - this probably is a communication error, possibly a wrong datapoint address?')
+                        return
+                except socket.timeout:
+                    raise Exception('Error receiving response: time-out')
+                    return
+                except IOError as io:
+                    raise IOError('IO Error: {}'.format(io))
+                    return
+                except Exception as e:
+                    raise Exception('Error receiving response: {}'.format(e))
+                    return
+
+            # sent all read requests, time to parse the replies
+            # do this inside the _lock-block so this doesn't interfere with
+            # possible cyclic read data assignments
+            for addr in bulk.keys():
+                if len(replies[addr]) > 0:
+                    self._parse_response(replies[addr], bulk[addr]['command'], True)
+
+        except IOError as io:
+            self.logger.error('KW_send_multiple_read_commands failed with IO error: {}.'.format(io))
+            self.logger.error('Trying to reconnect (disconnecting, connecting')
+            self._disconnect()
+            return
+        except Exception as e:
+            self.logger.error('KW_send_multiple_read_commands failed with error: {}.'.format(e))
+            return
+        finally:
+            try:
+                self._lock.release()
+            except RuntimeError:
+                pass
+
+    def _KW_get_sync(self):
+        '''
+        Try to get a sync packet (0x05) from heating system to be able to send commands
+
+        :return: True if sync packet received, False otherwise (after retries)
+        :rtype: bool
+        '''
+        if not self._connected or self._protocol != 'KW':
+            return False    # don't even try. We only want to be called by _send_command_packet, which just before executed connect()
+
+        retries = 5
+
+        # try to reset communication, especially if previous P300 comms is still open
+        self._send_bytes(self._int2bytes(self._controlset['Reset_Command'], 1))
+
+        attempt = 0
+        while attempt < retries:
+            self.logger.debug('Starting sync loop - attempt {}/{}'.format(attempt + 1, retries))
+
+            self._serial.reset_input_buffer()
+            chunk = self._read_bytes(1)
+            # enable for 'raw' debugging
+            # self.logger.debug('sync loop - got {}'.format(self._bytes2hexstring(chunk)))
+            if chunk == self._int2bytes(self._controlset['Not_initiated'], 1, False):
+                self.logger.debug('Got sync. Commencing command send')
+                return True
+            time.sleep(.8)
+            attempt = attempt + 1
+        self.logger.error('Sync not acquired after {} attempts.'.format(attempt))
+        self._disconnect()
+
+        return False
+
+    def _send_command_packet(self, packet, packetlen_response, commandname='', read_response=True):
+        '''
+        Send command sequence to device
+
+        :param packet: Command sequence to send
+        :type packet: bytearray
+        :param packetlen_response: number of bytes expected in reply
+        :type packetlen_response: int
+        :param commandname: Commandname used for request (only needed for KW protocol)
+        :type commandname: str
+        :param read_response: True if command was read command and value is expected, False if only status byte is expected (only needed for KW protocol)
+        :type read_response: bool
+        :return: True if no error occured, False otherwise
+        :rtype: bool
+        '''
+
+        if not self._connected:
+            self.logger.error('Not connected, trying to reconnect.')
+            if not self._connect():
+                self.logger.error('Could not connect to serial device')
+                return False
+
+        self._lock.acquire()
+        try:
             if not self._initialized or (time.time() - 500) > self._lastbytetime:
                 if self._protocol == 'P300':
                     if self._initialized:
@@ -770,17 +952,17 @@ class Viessmann(SmartPlugin):
                 try:
                     if self._protocol == 'KW':
                         # try to get sync, exit if it fails
-                        if not self._get_KW_sync():
-                            return
+                        if not self._KW_get_sync():
+                            return False
 
                     self._send_bytes(packet)
                     self.logger.debug('Successfully sent packet: {}'.format(self._bytes2hexstring(packet)))
-                    if self._protocol != 'KW':
-                        time.sleep(0.1)
                 except IOError as io:
                     raise IOError('IO Error: {}'.format(io))
+                    return False
                 except Exception as e:
                     raise Exception('Exception while sending: {}'.format(e))
+                    return False
                 # receive response
                 response_packet = bytearray()
                 try:
@@ -788,7 +970,6 @@ class Viessmann(SmartPlugin):
                     chunk = self._read_bytes(packetlen_response)
 
                     if self._protocol == 'P300':
-                        time.sleep(0.1)
                         self.logger.debug('Received {} bytes chunk of response as hexstring {} and as bytes {}'.format(len(chunk), self._bytes2hexstring(chunk), chunk))
                         if len(chunk) != 0:
                             if chunk[:1] == self._int2bytes(self._controlset['Error'], 1):
@@ -807,28 +988,37 @@ class Viessmann(SmartPlugin):
                         self.logger.debug('Received {} bytes chunk of response as hexstring {} and as bytes {}'.format(len(chunk), self._bytes2hexstring(chunk), chunk))
                         if len(chunk) != 0:
                             response_packet.extend(chunk)
-                            self._parse_response(response_packet, rcommandcode, read_response)
+                            self._parse_response(response_packet, commandname, read_response)
                         else:
                             self.logger.error('Received 0 bytes chunk - this probably is a communication error, possibly a wrong datapoint address?')
+                            return False
                 except socket.timeout:
                     raise Exception('Error receiving response: time-out')
+                    return False
                 except IOError as io:
                     raise IOError('IO Error: {}'.format(io))
+                    return False
                 except Exception as e:
                     raise Exception('Error receiving response: {}'.format(e))
+                    return False
             else:
                 raise Exception('Interface not initialized!')
+                return False
         except IOError as io:
-            self.logger.error('send_command failed with IO error: {}.'.format(io))
+            self.logger.error('send_command_packet failed with IO error: {}.'.format(io))
             self.logger.error('Trying to reconnect (disconnecting, connecting')
             self._disconnect()
+            return False
         except Exception as e:
-            self.logger.error('send_command failed with error: {}.'.format(e))
+            self.logger.error('send_command_packet failed with error: {}.'.format(e))
+            return False
+        finally:
+            try:
+                self._lock.release()
+            except RuntimeError:
+                pass
 
-        try:
-            self._lock.release()
-        except RuntimeError:
-            pass
+        return True
 
     def _send_bytes(self, packet):
         '''
@@ -890,14 +1080,14 @@ class Viessmann(SmartPlugin):
         # return what we got so far, might be 0
         return totalreadbytes
 
-    def _parse_response(self, response, rcommandcode='', read_response=True):
+    def _parse_response(self, response, commandname='', read_response=True):
         '''
         Process device response data, try to parse type and value and assign value to associated item
 
         :param response: Data received from device
         :type response: bytearray
-        :param rcommandcode: Commandcode used for request (only needed for KW protocol)
-        :type rcommandcode: str
+        :param commandname: Commandname used for request (only needed for KW protocol)
+        :type commandname: str
         :param read_response: True if command was read command and value is expected, False if only status byte is expected (only needed for KW protocol)
         :type read_response: bool
         '''
@@ -928,12 +1118,12 @@ class Viessmann(SmartPlugin):
             # imitate P300 response code data for easier combined handling afterwards
             # a read_response telegram consists only of the value bytes
             # a write_response telegram is 0x00 for OK, 0xXX for error
-            if rcommandcode == '':
+            if commandname == '':
                 self.logger.error('trying to parse KW protocol response, but rcommandcode not set in _parse_response. This should not happen...')
                 return
 
             responsetypecode = 1
-            commandcode = self._commandset[rcommandcode]['addr'].lower()
+            commandcode = self._commandset[commandname]['addr'].lower()
             valuebytecount = len(response)
             rawdatabytes = response
 
@@ -1238,7 +1428,7 @@ class Viessmann(SmartPlugin):
             for commandname in timer_dict:
                 value = timer_dict[commandname]
                 self.logger.debug('Got item value to be written: {} on command name {}.'.format(value, commandname))
-                self._send_write_command(commandname, value)
+                self._send_command(commandname, value)
 
     def _calc_checksum(self, packet):
         '''

@@ -53,6 +53,7 @@ controlset = {
         'Read': 0xF7,
         'Write': 0xF4,
         'Acknowledge': 0x01,
+        'Reset_Command': 0x04,
         'Not_initiated': 0x05,
         'Write_Ack': 0x00,
     },

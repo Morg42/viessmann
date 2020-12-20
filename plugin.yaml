@@ -9,7 +9,7 @@ plugin:
     tester: sisamiwe
     keywords: viessmann heating optolink
     state: ready                    # change to ready when done with development
-    version: 1.1.0                  # Plugin version
+    version: 1.2.0                  # Plugin version
     sh_minversion: 1.6.0            # minimum shNG version to use this plugin
     multi_instance: false           # plugin supports multi instance
     restartable: unknown
