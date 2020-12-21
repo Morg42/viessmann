@@ -66,6 +66,7 @@ class Viessmann(SmartPlugin):
         self._application_timer = {}                                        # Dict of application timer with command codes and values
         self._timer_cmds = []                                               # List of command codes for timer
         self._viess_timer_dict = {}
+        self._last_values = {}                                              # list of last value per command code
         self._lock = threading.Lock()
         self._initread = False
         self._timerread = False
@@ -348,9 +349,9 @@ class Viessmann(SmartPlugin):
                     self.logger.info("shng issued stop command, canceling cyclic read.")
                     return
 
-                commandname = self._commandname_by_commandcode(commandcode)
+                commandname = self._commandname_by_commandcode(addr)
                 self.logger.debug('Triggering cyclic read command: {}'.format(commandname))
-                self._send_command(commandname)
+                self._send_command(commandname, )
                 entry['nexttime'] = currenttime + entry['cycle']
                 read_items += 1
 
@@ -740,7 +741,7 @@ class Viessmann(SmartPlugin):
         '''
         Create formatted command sequence from command name and send to device
 
-        Note: The implementation detail results in "write if value present, read if value is None". 
+        Note: The implementation detail results in "write if value present, read if value is None".
               I have not found anything wrong with this; if any use case needs a specific read/write
               selection, please tell me.
 
@@ -758,7 +759,7 @@ class Viessmann(SmartPlugin):
         (packet, responselen) = self._build_command_packet(commandname, value)
 
         # quit if no packet (error on packet build)
-        if not packet:
+        if packet is None:
             return False
 
         if value is not None and self._protocol == 'KW':
@@ -767,8 +768,13 @@ class Viessmann(SmartPlugin):
             read_response = True
 
         # hand over built packet to send_command_packet
-        result = self._send_command_packet(packet, responselen, commandname, read_response)
+        response_packet = self._send_command_packet(packet, responselen)
 
+        # process response
+        if response_packet is None:
+            return False
+
+        result = self._process_response(response_packet, commandname, read_response)
         return result
 
     def _KW_send_multiple_read_commands(self, commandcodes):
@@ -866,7 +872,7 @@ class Viessmann(SmartPlugin):
             # possible cyclic read data assignments
             for addr in bulk.keys():
                 if len(replies[addr]) > 0:
-                    self._parse_response(replies[addr], bulk[addr]['command'], True)
+                    self._process_response(replies[addr], bulk[addr]['command'], True)
 
         except IOError as io:
             self.logger.error('KW_send_multiple_read_commands failed with IO error: {}.'.format(io))
@@ -915,7 +921,7 @@ class Viessmann(SmartPlugin):
 
         return False
 
-    def _send_command_packet(self, packet, packetlen_response, commandname='', read_response=True):
+    def _send_command_packet(self, packet, packetlen_response):
         '''
         Send command sequence to device
 
@@ -923,19 +929,16 @@ class Viessmann(SmartPlugin):
         :type packet: bytearray
         :param packetlen_response: number of bytes expected in reply
         :type packetlen_response: int
-        :param commandname: Commandname used for request (only needed for KW protocol)
-        :type commandname: str
         :param read_response: True if command was read command and value is expected, False if only status byte is expected (only needed for KW protocol)
         :type read_response: bool
-        :return: True if no error occured, False otherwise
-        :rtype: bool
+        :return: Response packet (bytearray) if no error occured, None otherwise
         '''
 
         if not self._connected:
             self.logger.error('Not connected, trying to reconnect.')
             if not self._connect():
                 self.logger.error('Could not connect to serial device')
-                return False
+                return None
 
         self._lock.acquire()
         try:
@@ -953,16 +956,17 @@ class Viessmann(SmartPlugin):
                     if self._protocol == 'KW':
                         # try to get sync, exit if it fails
                         if not self._KW_get_sync():
-                            return False
+                            return None
 
                     self._send_bytes(packet)
                     self.logger.debug('Successfully sent packet: {}'.format(self._bytes2hexstring(packet)))
                 except IOError as io:
                     raise IOError('IO Error: {}'.format(io))
-                    return False
+                    return None
                 except Exception as e:
                     raise Exception('Exception while sending: {}'.format(e))
-                    return False
+                    return None
+
                 # receive response
                 response_packet = bytearray()
                 try:
@@ -981,44 +985,38 @@ class Viessmann(SmartPlugin):
                                 self.logger.error('Received invalid chunk, not starting with ACK! response was: {}'.format(chunk))
                             else:
                                 response_packet.extend(chunk)
-                                self._parse_response(response_packet)
+                                return response_packet
                         else:
                             self.logger.error('Received 0 bytes chunk - ignoring response_packet! chunk was: {}'.format(chunk))
                     elif self._protocol == 'KW':
                         self.logger.debug('Received {} bytes chunk of response as hexstring {} and as bytes {}'.format(len(chunk), self._bytes2hexstring(chunk), chunk))
                         if len(chunk) != 0:
                             response_packet.extend(chunk)
-                            self._parse_response(response_packet, commandname, read_response)
+                            return response_packet
                         else:
                             self.logger.error('Received 0 bytes chunk - this probably is a communication error, possibly a wrong datapoint address?')
-                            return False
                 except socket.timeout:
                     raise Exception('Error receiving response: time-out')
-                    return False
                 except IOError as io:
                     raise IOError('IO Error: {}'.format(io))
-                    return False
                 except Exception as e:
                     raise Exception('Error receiving response: {}'.format(e))
-                    return False
             else:
                 raise Exception('Interface not initialized!')
-                return False
         except IOError as io:
             self.logger.error('send_command_packet failed with IO error: {}.'.format(io))
             self.logger.error('Trying to reconnect (disconnecting, connecting')
             self._disconnect()
-            return False
         except Exception as e:
             self.logger.error('send_command_packet failed with error: {}.'.format(e))
-            return False
         finally:
             try:
                 self._lock.release()
             except RuntimeError:
                 pass
 
-        return True
+        # if we didn't return with data earlier, we hit an error. Act accordingly
+        return None
 
     def _send_bytes(self, packet):
         '''
@@ -1090,6 +1088,7 @@ class Viessmann(SmartPlugin):
         :type commandname: str
         :param read_response: True if command was read command and value is expected, False if only status byte is expected (only needed for KW protocol)
         :type read_response: bool
+        :return: tuple of (parsed response value, commandcode) or None if error
         '''
 
         if self._protocol == 'P300':
@@ -1102,7 +1101,7 @@ class Viessmann(SmartPlugin):
             received_checksum = response[len(response) - 1]
             if received_checksum != checksum:
                 self.logger.error('Calculated checksum {} does not match received checksum of {}! Ignoring reponse.'.format(checksum, received_checksum))
-                return
+                return None
 
             # Extract command/address, valuebytes and valuebytecount out of response
             commandcode = response[5:7].hex()
@@ -1119,8 +1118,8 @@ class Viessmann(SmartPlugin):
             # a read_response telegram consists only of the value bytes
             # a write_response telegram is 0x00 for OK, 0xXX for error
             if commandname == '':
-                self.logger.error('trying to parse KW protocol response, but rcommandcode not set in _parse_response. This should not happen...')
-                return
+                self.logger.error('trying to parse KW protocol response, but commandname not set in _parse_response. This should not happen...')
+                return None
 
             responsetypecode = 1
             commandcode = self._commandset[commandname]['addr'].lower()
@@ -1136,7 +1135,7 @@ class Viessmann(SmartPlugin):
             else:
                 # status response to write request
                 responsedatacode = 2
-                if len(rawdatabytes) == 1 and rawdatabytes[0] != 0:
+                if (len(rawdatabytes) == 1 and rawdatabytes[0] != 0) or len(rawdatabytes) == 0:
                     # error if status reply is not 0x00
                     responsetypecode = 3
 
@@ -1146,149 +1145,176 @@ class Viessmann(SmartPlugin):
         # Process response for items if read response and not error
         if responsedatacode == 1 and responsetypecode != 3:
 
-            # Process response for items in item-dict using the commandcode
-            if commandcode in self._params.keys():
+            # parse response if command config is available
+            commandname = self._commandname_by_commandcode(commandcode)
+            if commandname is None:
+                self.logger.error('Received response for unknown address point {}'.format(commandcode))
+                return None
 
-                # Find corresponding item and commandname
-                item = self._params[commandcode]['item']
-                commandname = self._params[commandcode]['commandname']
-                self.logger.debug('Corresponding Item: {}; Corresponding commandname: {}'.format(item.id(), commandname))
+            # Get command and respective unit config
+            commandconf = self._commandset[commandname]
+            commandvaluebytes = commandconf['len']
+            commandunit = commandconf['unit']
+            unitconf = self._unitset.get(commandunit)
+            if not unitconf:
+                self.logger.error('Unit configuration not found for unit {} in protocol {}. This is a configuration error in commands.py, please fix.'.format(commandunit, self._protocol))
+                return None
+            commandsigned = unitconf['signed']
+            valuetransform = unitconf['read_value_transform']
+            # uncomment for raw debugging
+            # self.logger.debug('Unit defined as {} with config {}.'.format(commandunit, unitconf))
 
-                # Get command and respective unit config
-                commandconf = self._commandset[commandname]
-                commandvaluebytes = commandconf['len']
-                commandunit = commandconf['unit']
-                unitconf = self._unitset.get(commandunit)
-                if not unitconf:
-                    self.logger.error('Unit configuration not found for unit {} in protocol {}. This is a configuration error in commands.py, please fix.'.format(commandunit, self._protocol))
-                    return
-                commandsigned = unitconf['signed']
-                valuetransform = unitconf['read_value_transform']
-                self.logger.debug('Unit defined to {} with config {}.'.format(commandunit, unitconf))
+            # start value decode
+            if commandunit == 'CT':
+                rawdatastring = rawdatabytes.hex()
+                timer = self._decode_timer(rawdatastring)
+                # fill list
+                timer = [{'An': on_time, 'Aus': off_time}
+                         for on_time, off_time in zip(timer, timer)]
+                value = timer
+                self.logger.debug('Matched command {} and read transformed timer {} and byte length {}.'.format(commandname, value, commandvaluebytes))
+            elif commandunit == 'TI':
+                rawdatastring = rawdatabytes.hex()
+                rawdata = bytearray()
+                rawdata.extend(map(ord, rawdatastring))
+                # decode datetime
+                value = datetime.strptime(rawdata.decode(), '%Y%m%d%W%H%M%S').isoformat()
+                self.logger.debug('Matched command {} and read transformed datetime {} and byte length {}.'.format(commandname, value, commandvaluebytes))
+            elif commandunit == 'DA':
+                rawdatastring = rawdatabytes.hex()
+                rawdata = bytearray()
+                rawdata.extend(map(ord, rawdatastring))
+                # decode date
+                value = datetime.strptime(rawdata.decode(), '%Y%m%d%W%H%M%S').date().isoformat()
+                self.logger.debug('Matched command {} and read transformed datetime {} and byte length {}.'.format(commandname, value, commandvaluebytes))
+            elif commandunit == 'ES':
+                # erstes Byte = Fehlercode; folgenden 8 Byte = Systemzeit
+                errorcode = (rawdatabytes[:1]).hex()
+                # errorquerytime = (rawdatabytes[1:8]).hex()
+                value = self._error_decode(errorcode)
+                self.logger.debug('Matched command {} and read transformed errorcode {} (raw value was {}) and byte length {}.'.format(commandname, value, errorcode, commandvaluebytes))
+            elif commandunit == 'SC':
+                # erstes Byte = Anlagenschema
+                systemschemescode = (rawdatabytes[:1]).hex()
+                value = self._systemscheme_decode(systemschemescode)
+                self.logger.debug('Matched command {} and read transformed system scheme {} (raw value was {}) and byte length {}.'.format(commandname, value, systemschemescode, commandvaluebytes))
+            elif commandunit == 'BA':
+                operatingmodecode = (rawdatabytes[:1]).hex()
+                value = self._operatingmode_decode(operatingmodecode)
+                self.logger.debug('Matched command {} and read transformed operating mode {} (raw value was {}) and byte length {}.'.format(commandname, value, operatingmodecode, commandvaluebytes))
+            elif commandunit == 'DT':
+                # device type has 8 bytes, but first 4 bytes are device type indicator
+                devicetypebytes = rawdatabytes[:2].hex()
+                value = self._devicetype_decode(devicetypebytes).upper()
+                self.logger.debug('Matched command {} and read transformed device type {} (raw value was {}) and byte length {}.'.format(commandname, value, devicetypebytes, commandvaluebytes))
+            elif commandunit == 'SN':
+                # serial number has 7 bytes,
+                serialnummerbytes = rawdatabytes[:7]
+                value = self._serialnumber_decode(serialnummerbytes)
+                self.logger.debug('Matched command {} and read transformed serial number {} (raw value was {}) and byte length {}.'.format(commandname, value, serialnummerbytes, commandvaluebytes))
+            else:
+                rawvalue = self._bytes2int(rawdatabytes, commandsigned)
+                value = self._value_transform_read(rawvalue, valuetransform)
+                self.logger.debug('Matched command {} and read transformed value {} (integer raw value was {}) and byte length {}.'.format(commandname, value, rawvalue, commandvaluebytes))
 
-                # start value decode
+            # assign to dict for use by other functions
+            self._last_values[commandcode] = value
+
+            return (value, commandcode)
+
+        # Handling of write command response if not error
+        elif responsedatacode == 2 and responsetypecode != 3:
+            self.logger.debug('Write request of adress {} successfull writing {} bytes.'.format(commandcode, valuebytecount))
+            return None
+        else:
+            self.logger.error('Write request of adress {} NOT successfull writing {} bytes.'.format(commandcode, valuebytecount))
+            return None
+
+    def _process_response(self, response, commandname='', read_response=True, update_item=True):
+        '''
+        Process device response data, try to parse type and value and assign value to associated item
+
+        :param response: Data received from device
+        :type response: bytearray
+        :param commandname: Commandname used for request (only needed for KW protocol)
+        :type commandname: str
+        :param read_response: True if command was read command and value is expected, False if only status byte is expected (only needed for KW protocol)
+        :type read_response: bool
+        :param update_item: True if value should be written to corresponding item
+        :type update_item: bool
+        '''
+        res = self._parse_response(response, commandname, read_response)
+
+        # None means error on read/parse or write reponse. Errors are already logged, so no further action necessary
+        if res is None:
+            return
+
+        # assign results
+        (value, commandcode) = res
+
+        # get command config
+        commandname = self._commandname_by_commandcode(commandcode)
+        commandconf = self._commandset[commandname]
+        commandunit = commandconf['unit']
+
+        # update items if commandcode is in item-dict
+        if commandcode in self._params.keys():
+
+            # Find corresponding item
+            item = self._params[commandcode]['item']
+            self.logger.debug('Corresponding item {} for command {}'.format(item, commandname))
+
+            # Update item
+            if update_item:
+                self.logger.debug('Updating item {} with value {}'.format(item, value))
                 if commandunit == 'CT':
-                    rawdatastring = rawdatabytes.hex()
-                    timer = self._decode_timer(rawdatastring)
-                    # fill list
-                    timer = [{'An': on_time, 'Aus': off_time}
-                             for on_time, off_time in zip(timer, timer)]
-                    value = timer
-                    self.logger.debug('Matched command {} and read transformed timer {} and byte length {}.'.format(commandname, value, commandvaluebytes))
                     # Split timer list and put it the child items, which were created by struct.timer in iso time format
                     try:
                         for child in item.return_children():
                             child_item = str(child.id())
                             if child_item.endswith('an1'):
-                                child(timer[0]['An'], self.get_shortname())
-                                # child(datetime.strptime(timer[0]['An'], '%H:%M').time().isoformat())
+                                child(value[0]['An'], self.get_shortname())
+                                # child(datetime.strptime(value[0]['An'], '%H:%M').time().isoformat())
                             elif child_item.endswith('aus1'):
-                                child(timer[0]['Aus'], self.get_shortname())
+                                child(value[0]['Aus'], self.get_shortname())
                             elif child_item.endswith('an2'):
-                                child(timer[1]['An'], self.get_shortname())
+                                child(value[1]['An'], self.get_shortname())
                             elif child_item.endswith('aus2'):
-                                child(timer[1]['Aus'], self.get_shortname())
+                                child(value[1]['Aus'], self.get_shortname())
                             elif child_item.endswith('an3'):
-                                child(timer[2]['An'], self.get_shortname())
+                                child(value[2]['An'], self.get_shortname())
                             elif child_item.endswith('aus3'):
-                                child(timer[2]['Aus'], self.get_shortname())
+                                child(value[2]['Aus'], self.get_shortname())
                             elif child_item.endswith('an4'):
-                                child(timer[3]['An'], self.get_shortname())
+                                child(value[3]['An'], self.get_shortname())
                             elif child_item.endswith('aus4'):
-                                child(timer[3]['Aus'], self.get_shortname())
+                                child(value[3]['Aus'], self.get_shortname())
                     except KeyError:
                         self.logger.debug('No child items for timer found (use timer.structs) or value no valid')
-
-                elif commandunit == 'TI':
-                    rawdatastring = rawdatabytes.hex()
-                    rawdata = bytearray()
-                    rawdata.extend(map(ord, rawdatastring))
-                    # decode datetime
-                    value = datetime.strptime(rawdata.decode(), '%Y%m%d%W%H%M%S').isoformat()
-                    self.logger.debug('Matched command {} and read transformed datetime {} and byte length {}.'.format(commandname, value, commandvaluebytes))
-                elif commandunit == 'DA':
-                    rawdatastring = rawdatabytes.hex()
-                    rawdata = bytearray()
-                    rawdata.extend(map(ord, rawdatastring))
-                    # decode date
-                    value = datetime.strptime(rawdata.decode(), '%Y%m%d%W%H%M%S').date().isoformat()
-                    self.logger.debug('Matched command {} and read transformed datetime {} and byte length {}.'.format(commandname, value, commandvaluebytes))
-                elif commandunit == 'ES':
-                    # erstes Byte = Fehlercode; folgenden 8 Byte = Systemzeit
-                    errorcode = (rawdatabytes[:1]).hex()
-                    # errorquerytime = (rawdatabytes[1:8]).hex()
-                    value = self._error_decode(errorcode)
-                    self.logger.debug('Matched command {} and read transformed errorcode {} (raw value was {}) and byte length {}.'.format(commandname, value, errorcode, commandvaluebytes))
-                elif commandunit == 'SC':
-                    # erstes Byte = Anlagenschema
-                    systemschemescode = (rawdatabytes[:1]).hex()
-                    value = self._systemscheme_decode(systemschemescode)
-                    self.logger.debug('Matched command {} and read transformed system scheme {} (raw value was {}) and byte length {}.'.format(commandname, value, systemschemescode, commandvaluebytes))
-                elif commandunit == 'BA':
-                    operatingmodecode = (rawdatabytes[:1]).hex()
-                    value = self._operatingmode_decode(operatingmodecode)
-                    self.logger.debug('Matched command {} and read transformed operating mode {} (raw value was {}) and byte length {}.'.format(commandname, value, operatingmodecode, commandvaluebytes))
-                elif commandunit == 'DT':
-                    # device type has 8 bytes, but first 4 bytes are device type indicator
-                    devicetypebytes = rawdatabytes[:2].hex()
-                    value = self._devicetype_decode(devicetypebytes).upper()
-                    self.logger.debug('Matched command {} and read transformed device type {} (raw value was {}) and byte length {}.'.format(commandname, value, devicetypebytes, commandvaluebytes))
-                elif commandunit == 'SN':
-                    # serial number has 7 bytes,
-                    serialnummerbytes = rawdatabytes[:7]
-                    value = self._serialnumber_decode(serialnummerbytes)
-                    self.logger.debug('Matched command {} and read transformed serial number {} (raw value was {}) and byte length {}.'.format(commandname, value, serialnummerbytes, commandvaluebytes))
                 else:
-                    rawvalue = self._bytes2int(rawdatabytes, commandsigned)
-                    value = self._value_transform_read(rawvalue, valuetransform)
-                    self.logger.debug('Matched command {} and read transformed value {} (integer raw value was {}) and byte length {}.'.format(commandname, value, rawvalue, commandvaluebytes))
-
-                # Update item
-                self.logger.debug('Updating item {} with value {}'.format(item, value))
-                item(value, self.get_shortname())
+                    item(value, self.get_shortname())
             else:
-                if commandcode not in self._timer_cmds:
-                    self.logger.info('Got response to a command not requested: {}'.format(commandcode))
-
-            # Process response for timers in timer-dict using the commandcode
-            if commandcode in self._timer_cmds:
-                self.logger.debug('Parse_Response_Timer: {}.'.format(commandcode))
-
-                # Find corresponding commandname
-                commandname = self._commandname_by_commandcode(commandcode)
-
-                # Find timer application
-                for timer in self._application_timer:
-                    if commandcode in self._application_timer[timer]['commandcodes']:
-                        timer_app = timer
-
-                # Get commandconf and respective unit config
-                commandconf = self._commandset[commandname]
-                commandvaluebytes = commandconf['len']
-                commandunit = commandconf['unit']
-
-                # Value decode
-                if commandunit == 'CT':
-                    rawdatastring = rawdatabytes.hex()
-                    timer = self._decode_timer(rawdatastring)
-                    # fill single timer list
-                    timer = [{'An': on_time, 'Aus': off_time}
-                             for on_time, off_time in zip(timer, timer)]
-                    self.logger.debug('Matched timer command {} for application timer {} and read transformed timer {} and byte length {}.'.format(commandname, timer_app, timer, commandvaluebytes))
-
-                    # Fill timer dict
-                    if timer_app not in self._viess_timer_dict:
-                        self._viess_timer_dict[timer_app] = {}
-
-                    self._viess_timer_dict[timer_app][commandname] = timer
-                    self.logger.debug('Viessmann timer dict: {}.'.format(self._viess_timer_dict))
-                    # self._viess_timer_dict: {'Timer_M2': {'Timer_M2_Di': [{'An': '04:10', 'Aus': '07:00'}, {'An': '13:30', 'Aus': '20:00'}, {'An': '00:00', 'Aus': '00:00'}, {'An': '00:00', 'Aus': '00:00'}], 'Timer_M2_Mo': [{'An': '04:10', 'Aus': '07:00'}, {'An': '13:30', 'Aus': '20:00'}, {'An': '00:00', 'Aus': '00:00'}, {'An': '00:00', 'Aus': '00:00'}], 'Timer_M2_Sa': [{'An': '04:40', 'Aus': '21:00'}, {'An': '00:00', 'Aus': '00:00'}, {'An': '00:00', 'Aus': '00:00'}, {'An': '00:00', 'Aus': '00:00'}], 'Timer_M2_So': [{'An': '04:40', 'Aus': '21:00'}, {'An': '00:00', 'Aus': '00:00'}, {'An': '00:00', 'Aus': '00:00'}, {'An': '00:00', 'Aus': '00:00'}], 'Timer_M2_Do': [{'An': '04:10', 'Aus': '07:00'}, {'An': '13:30', 'Aus': '20:00'}, {'An': '00:00', 'Aus': '00:00'}, {'An': '00:00', 'Aus': '00:00'}], 'Timer_M2_Mi': [{'An': '04:10', 'Aus': '07:00'}, {'An': '13:30', 'Aus': '20:00'}, {'An': '00:00', 'Aus': '00:00'}, {'An': '00:00', 'Aus': '00:00'}], 'Timer_M2_Fr': [{'An': '04:10', 'Aus': '07:00'}, {'An': '13:30', 'Aus': '20:00'}, {'An': '00:00', 'Aus': '00:00'}, {'An': '00:00', 'Aus': '00:00'}]}, 'Timer_Warmwasser': {'Timer_Warmwasser_Fr': [{'An': '04:00', 'Aus': '04:40'}, {'An': '16:30', 'Aus': '17:10'}, {'An': '00:00', 'Aus': '00:00'}, {'An': '00:00', 'Aus': '00:00'}], 'Timer_Warmwasser_Mi': [{'An': '04:00', 'Aus': '04:40'}, {'An': '16:30', 'Aus': '17:10'}, {'An': '00:00', 'Aus': '00:00'}, {'An': '00:00', 'Aus': '00:00'}], 'Timer_Warmwasser_Mo': [{'An': '04:00', 'Aus': '04:40'}, {'An': '16:30', 'Aus': '17:10'}, {'An': '00:00', 'Aus': '00:00'}, {'An': '00:00', 'Aus': '00:00'}], 'Timer_Warmwasser_Do': [{'An': '04:00', 'Aus': '04:40'}, {'An': '16:30', 'Aus': '17:10'}, {'An': '00:00', 'Aus': '00:00'}, {'An': '00:00', 'Aus': '00:00'}], 'Timer_Warmwasser_Sa': [{'An': '04:00', 'Aus': '04:40'}, {'An': '16:30', 'Aus': '17:10'}, {'An': '00:00', 'Aus': '00:00'}, {'An': '00:00', 'Aus': '00:00'}], 'Timer_Warmwasser_Di': [{'An': '04:00', 'Aus': '04:40'}, {'An': '16:30', 'Aus': '17:10'}, {'An': '00:00', 'Aus': '00:00'}, {'An': '00:00', 'Aus': '00:00'}], 'Timer_Warmwasser_So': [{'An': '04:00', 'Aus': '04:40'}, {'An': '16:30', 'Aus': '17:10'}, {'An': '00:00', 'Aus': '00:00'}, {'An': '00:00', 'Aus': '00:00'}]}}
-
-        # Handling of write command response if not error
-        elif responsedatacode == 2 and responsetypecode != 3:
-            self.logger.debug('Write request of adress {} successfull writing {} bytes.'.format(commandcode, valuebytecount))
+                self.logger.debug("Not updating item {} as not requested".format(item))
         else:
-            self.logger.error('Write request of adress {} NOT successfull writing {} bytes.'.format(commandcode, valuebytecount))
+            if (commandcode not in self._timer_cmds) and update_item:
+                self.logger.error('Should update item with response to a command not in item config: {}. This shouldn''t happen...'.format(commandcode))
+
+        # Process response for timers in timer-dict using the commandcode
+        if commandcode in self._timer_cmds:
+            self.logger.debug('process_response_timer: {}.'.format(commandcode))
+
+            # Find timer application
+            for timer in self._application_timer:
+                if commandcode in self._application_timer[timer]['commandcodes']:
+                    timer_app = timer
+
+            # Fill timer dict
+            if timer_app not in self._viess_timer_dict:
+                self._viess_timer_dict[timer_app] = {}
+
+            self._viess_timer_dict[timer_app][commandname] = value
+            self.logger.debug('Viessmann timer dict: {}.'.format(self._viess_timer_dict))
+            # self._viess_timer_dict: {'Timer_M2': {'Timer_M2_Di': [{'An': '04:10', 'Aus': '07:00'}, {'An': '13:30', 'Aus': '20:00'}, {'An': '00:00', 'Aus': '00:00'}, {'An': '00:00', 'Aus': '00:00'}], 'Timer_M2_Mo': [{'An': '04:10', 'Aus': '07:00'}, {'An': '13:30', 'Aus': '20:00'}, {'An': '00:00', 'Aus': '00:00'}, {'An': '00:00', 'Aus': '00:00'}], 'Timer_M2_Sa': [{'An': '04:40', 'Aus': '21:00'}, {'An': '00:00', 'Aus': '00:00'}, {'An': '00:00', 'Aus': '00:00'}, {'An': '00:00', 'Aus': '00:00'}], 'Timer_M2_So': [{'An': '04:40', 'Aus': '21:00'}, {'An': '00:00', 'Aus': '00:00'}, {'An': '00:00', 'Aus': '00:00'}, {'An': '00:00', 'Aus': '00:00'}], 'Timer_M2_Do': [{'An': '04:10', 'Aus': '07:00'}, {'An': '13:30', 'Aus': '20:00'}, {'An': '00:00', 'Aus': '00:00'}, {'An': '00:00', 'Aus': '00:00'}], 'Timer_M2_Mi': [{'An': '04:10', 'Aus': '07:00'}, {'An': '13:30', 'Aus': '20:00'}, {'An': '00:00', 'Aus': '00:00'}, {'An': '00:00', 'Aus': '00:00'}], 'Timer_M2_Fr': [{'An': '04:10', 'Aus': '07:00'}, {'An': '13:30', 'Aus': '20:00'}, {'An': '00:00', 'Aus': '00:00'}, {'An': '00:00', 'Aus': '00:00'}]}, 'Timer_Warmwasser': {'Timer_Warmwasser_Fr': [{'An': '04:00', 'Aus': '04:40'}, {'An': '16:30', 'Aus': '17:10'}, {'An': '00:00', 'Aus': '00:00'}, {'An': '00:00', 'Aus': '00:00'}], 'Timer_Warmwasser_Mi': [{'An': '04:00', 'Aus': '04:40'}, {'An': '16:30', 'Aus': '17:10'}, {'An': '00:00', 'Aus': '00:00'}, {'An': '00:00', 'Aus': '00:00'}], 'Timer_Warmwasser_Mo': [{'An': '04:00', 'Aus': '04:40'}, {'An': '16:30', 'Aus': '17:10'}, {'An': '00:00', 'Aus': '00:00'}, {'An': '00:00', 'Aus': '00:00'}], 'Timer_Warmwasser_Do': [{'An': '04:00', 'Aus': '04:40'}, {'An': '16:30', 'Aus': '17:10'}, {'An': '00:00', 'Aus': '00:00'}, {'An': '00:00', 'Aus': '00:00'}], 'Timer_Warmwasser_Sa': [{'An': '04:00', 'Aus': '04:40'}, {'An': '16:30', 'Aus': '17:10'}, {'An': '00:00', 'Aus': '00:00'}, {'An': '00:00', 'Aus': '00:00'}], 'Timer_Warmwasser_Di': [{'An': '04:00', 'Aus': '04:40'}, {'An': '16:30', 'Aus': '17:10'}, {'An': '00:00', 'Aus': '00:00'}, {'An': '00:00', 'Aus': '00:00'}], 'Timer_Warmwasser_So': [{'An': '04:00', 'Aus': '04:40'}, {'An': '16:30', 'Aus': '17:10'}, {'An': '00:00', 'Aus': '00:00'}, {'An': '00:00', 'Aus': '00:00'}]}}
 
     #
     # convert data types
@@ -1650,6 +1676,63 @@ class Viessmann(SmartPlugin):
         except ValueError:
             return False
 
+    def read_addr(self, addr):
+        '''
+        Tries to read a data point indepently of item config
+
+        :param addr: data point addr (2 byte hex address)
+        :type addr: str
+        :return: Value if read is successful, None otherwise
+        '''
+        commandname = self._commandname_by_commandcode(addr)
+        if commandname is None:
+            return None
+
+        self.logger.debug('Attempting to read address {} for command {}'.format(addr, commandname))
+
+        (packet, responselen) = self._build_command_packet(commandname)
+        if packet is None:
+            return None
+
+        response_packet = self._send_command_packet(packet, responselen)
+        if response_packet is None:
+            return None
+
+        res = self._parse_response(response_packet, commandname)
+        if res is None:
+            return None
+
+        (value, commandcode) = res
+
+        return value
+
+    def read_temp_addr(self, addr, len, unit):
+        '''
+        Tries to read an arbitrary supplied data point indepently of device config
+
+        :param addr: data point addr (2 byte hex address)
+        :type addr: str
+        :param len: Length (in byte) expected from address read
+        :type len: num
+        :param unit: Unit code from commands.py
+        :type unit: str
+        :return: Value if read is successful, None otherwise
+        '''
+
+        # as we have no reference whatever concerning the supplied data, we do a few sanity checks...
+        if len(addr) != 4:
+            return None
+
+        for c in addr:
+            if c not in '0123456789abcdefABCDEF':
+                return None
+
+        if len < 1 or len > 8:  # empiritistical choice
+            return None
+
+        if unit not in self._unitset:
+            pass
+
     #
     # webinterface
     #
@@ -1686,7 +1769,7 @@ class Viessmann(SmartPlugin):
         }
 
         # Register the web interface as a cherrypy app
-        self.mod_http.register_webif(WebInterface(webif_dir, self),
+        self.mod_http.register_webif(WebInterface(webif_dir, self, self._commandset),
                                      self.get_shortname(),
                                      config,
                                      self.get_classname(), self.get_instance_name(),
@@ -1698,11 +1781,11 @@ class Viessmann(SmartPlugin):
 # ------------------------------------------
 #    Webinterface of the plugin
 # ------------------------------------------
-
+import json
 
 class WebInterface(SmartPluginWebIf):
 
-    def __init__(self, webif_dir, plugin):
+    def __init__(self, webif_dir, plugin, cmdset):
         """
         Initialization of instance of class WebInterface
 
@@ -1718,8 +1801,14 @@ class WebInterface(SmartPluginWebIf):
 
         self.items = Items.get_instance()
 
+        self.cmdset = cmdset
+
+        self._read_addr = None
+        self._read_cmd = ''
+        self._read_val = ''
+
     @cherrypy.expose
-    def index(self, reload=None):
+    def index(self, reload=None, read_addr=None):
         """
         Build index.html for cherrypy
 
@@ -1727,9 +1816,26 @@ class WebInterface(SmartPluginWebIf):
 
         :return: contents of the template after beeing rendered
         """
+        self._read_val = ''
+        self._read_addr = ''
+        self._read_cmd = ''
+        if read_addr is not None:
+            self._read_addr = read_addr
+            self._read_val = self.plugin.read_addr(read_addr)
+            self._read_cmd = self.plugin._commandname_by_commandcode(self._read_addr)
+            if self._read_val is None:
+                self._read_val = 'Fehler beim Lesen'
+
         tmpl = self.tplenv.get_template('index.html')
         # add values to be passed to the Jinja2 template eg: tmpl.render(p=self.plugin, interface=interface, ...)
-        return tmpl.render(p=self.plugin, items=sorted(self.items.return_items(), key=lambda k: str.lower(k['_path'])))
+
+        return tmpl.render(p=self.plugin, 
+                           items=sorted(self.items.return_items(), key=lambda k: str.lower(k['_path'])), 
+                           cmds=self.cmdset, 
+                           last_read_addr=self._read_addr,
+                           last_read_value=self._read_val,
+                           last_read_cmd=self._read_cmd
+                           )
 
     @cherrypy.expose
     def get_data_html(self, dataSet=None):
