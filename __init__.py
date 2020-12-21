@@ -348,7 +348,7 @@ class Viessmann(SmartPlugin):
                     self.logger.info("shng issued stop command, canceling cyclic read.")
                     return
 
-                commandname = self._commandname_by_commandcode(commandcode)
+                commandname = self._commandname_by_commandcode(addr)
                 self.logger.debug('Triggering cyclic read command: {}'.format(commandname))
                 self._send_command(commandname)
                 entry['nexttime'] = currenttime + entry['cycle']
