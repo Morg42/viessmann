@@ -84,7 +84,7 @@ commandset = {
         'TempKOffset':                                {'addr': '6760', 'len': 1, 'unit': 'ISNON',   'set': True, 'min_value': 0,   'max_value': 1193045},   # Kesseloffset KT ueber WWsoll in Grad C
         'Systemtime':                                 {'addr': '088e', 'len': 8, 'unit': 'TI',      'set': True},                                           # Systemzeit
         'Anlagenschema':                              {'addr': '7700', 'len': 2, 'unit': 'SC',      'set': False},                                          # Anlagenschema
-        'Anlagentyp':                                 {'addr': '00f8', 'len': 8, 'unit': 'DT',      'set': False},                                          # Heizungstyp
+        'Anlagentyp':                                 {'addr': '00f8', 'len': 2, 'unit': 'DT',      'set': False},                                          # Heizungstyp
         'Inventory':                                  {'addr': '08e0', 'len': 7, 'unit': 'SN',      'set': False},                                          # Sachnummer
         'CtrlId':                                     {'addr': '08e0', 'len': 7, 'unit': 'DT',      'set': False},                                          # Reglerkennung
         # Fehler
@@ -234,6 +234,7 @@ commandset = {
     },
     'V200HO1C': {
         # Allgemein
+        'Anlagentyp':                                 {'addr': '00f8', 'len': 2, 'unit': 'DT',      'set': False},                                          # Heizungstyp
         'Frostgefahr':                                {'addr': '2510', 'len': 1, 'unit': 'IUBOOL',  'set': False},                                          # Frostgefahr
         'Aussentemperatur_TP':                        {'addr': '5525', 'len': 2, 'unit': 'IU10',    'set': False},                                          # Aussentemperatur_tiefpass
         'Aussentemperatur_Dp':                        {'addr': '5527', 'len': 2, 'unit': 'IU10',    'set': False},                                          # Aussentemperatur in Grad C (Gedaempft)
