@@ -1840,58 +1840,49 @@ class WebInterface(SmartPluginWebIf):
 
         :return: contents of the template after beeing rendered
         '''
-
         tmpl = self.tplenv.get_template('index.html')
         # add values to be passed to the Jinja2 template eg: tmpl.render(p=self.plugin, interface=interface, ...)
 
         return tmpl.render(p=self.plugin,
                            items=sorted(self.items.return_items(), key=lambda k: str.lower(k['_path'])),
                            cmds=self.cmdset,
+                           units=sorted(list(self.plugin._unitset.keys())),
                            last_read_addr=self._last_read['last']['addr'],
                            last_read_value=self._last_read['last']['val'],
                            last_read_cmd=self._last_read['last']['cmd']
                            )
 
     @cherrypy.expose
-    def get_data_html(self, dataSet=None):
-        '''
-        Return data to update the webpage
-
-        For the standard update mechanism of the web interface, the dataSet to return the data for is None
-
-        :param dataSet: Dataset for which the data should be returned (standard: None)
-        :return: dict with the data needed to update the web page.
-        '''
-        if dataSet is None:
-            data = {}
-
-            data['item'] = self._last_read
-            # return it as json the the web page
-            try:
-                return json.dumps(data)
-            except Exception as e:
-                self.logger.error('get_data_html exception: {}'.format(e))
-            pass
-
-        return {}
-
-    @cherrypy.expose
-    def submit(self, button=None):
+    def submit(self, button=None, addr=None, length=0, unit=None, clear=False):
         '''
         Submit handler for Ajax
         '''
-
         if button is not None:
 
             read_val = self.plugin.read_addr(button)
             if read_val is None:
-                self.logger.debug('Error trying to read addr {}'.format(button))
+                self.logger.debug(f'Error trying to read addr {button} submitted by WebIf')
                 read_val = 'Fehler beim Lesen'
+            else:
+                read_cmd = self.plugin._commandname_by_commandcode(button)
+                if read_cmd is not None:
+                    self._last_read[button] = {'addr': button, 'cmd': read_cmd, 'val': read_val}
+                    self._last_read['last'] = self._last_read[button]
 
-            read_cmd = self.plugin._commandname_by_commandcode(button)
-            if read_cmd is not None:
-                self._last_read[button] = {'addr': button, 'cmd': read_cmd, 'val': read_val}
-                self._last_read['last'] = self._last_read[button]
+        elif addr is not None and unit is not None and length.isnumeric():
+
+            read_val = self.plugin.read_temp_addr(addr, int(length), unit)
+            if read_val is None:
+                self.logger.debug(f'Error trying to read custom addr {button} submitted by WebIf')
+                read_val = 'Fehler beim Lesen'
+            else:
+                self._last_read[addr] = {'addr': addr, 'cmd': f'custom ({addr})', 'val': read_val}
+                self._last_read['last'] = self._last_read[addr]
+
+        elif clear:
+            for addr in self._last_read:
+                self._last_read[addr]['val'] = ''
+            self._last_read['last'] = {'addr': None, 'val': '', 'cmd': ''}
 
         cherrypy.response.headers['Content-Type'] = 'application/json'
         return json.dumps(self._last_read).encode('utf-8')

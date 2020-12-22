@@ -30,22 +30,84 @@
 
 	$(function() {
 	         
-	    // When the testform is submitted...
+	    // When a button in the address table (tab3) is pressed...
 	    $("#button_pressed").submit(function(e) {
 	 
 			e.preventDefault();
 
 	        // post the form values via AJAX...
-	        $.post('submit', {button: $("#button").val()}, function(data) {
-	 
-	            // and set the title with the result
-	            var cmd = data.last.cmd;
-	            var val = data.last.val;
+			if ($("#button").val() == '') {
 
-	            if (cmd != '') {
-	            	$("#last_read_cmd").html(data.last.cmd)
-	            	$("#last_read_val").html(data.last.val)
-	            }
+				// if button is empty, we want custom address read...
+				$.post('submit', {
+					addr: $("#cust_addr").val(),
+					length: $("#cust_len").val(),
+					unit: $("#cust_unit").val()
+				}, function(data) {
+
+		            // and set the title with the result
+		            var cmd = data.last.cmd;
+		            var val = data.last.val;
+
+		            if (cmd != '') {
+		            	$("#last_read_cmd").html(data.last.cmd + ": ")
+		            	$("#last_read_val").html(data.last.val)
+		            } else {
+		            	$("#last_read_cmd").html("---")
+		            	$("#last_read_val").html("")
+
+		            }
+
+		            $("#addrcust").html(data.last.val)
+
+					for (var key in data) {
+						if (key != 'last') {
+							$("#addr"+key).html(data[key].val)
+						}
+					}
+				});
+				return false ;
+
+			} else {
+			
+				// just do it
+		        $.post('submit', {button: $("#button").val()}, function(data) {
+	 
+		            // and set the title with the result
+		            var cmd = data.last.cmd;
+		            var val = data.last.val;
+
+		            if (cmd != '') {
+		            	$("#last_read_cmd").html(data.last.cmd + ": ")
+		            	$("#last_read_val").html(data.last.val)
+		            } else {
+		            	$("#last_read_cmd").html("---")
+		            	$("#last_read_val").html("")
+
+		            }
+
+					for (var key in data) {
+						if (key != 'last') {
+							$("#addr"+key).html(data[key].val)
+						}
+					}
+			    });
+	    	    return false ;
+	    	}
+	    });
+
+	         
+	    // When the testform is submitted...
+	    $("#form_clear").submit(function(b) {
+	 
+			b.preventDefault();
+
+	        // post the form values via AJAX...
+	        $.post('submit', {clear: "true"}, function(data) {
+	 
+	            // clear all read fields
+            	$("#last_read_cmd").html("---")
+            	$("#last_read_val").html("")
 
 				for (var key in data) {
 					if (key != 'last') {
@@ -56,7 +118,6 @@
 	        return false ;
 	    });
 	});
-
 
 	$(document).ready( function () {
 	    $('#itemtable').DataTable( {
@@ -103,15 +164,20 @@
 			<td></td>
 		</tr>
 		<tr>
-			<td class="py-1"><strong>{{ _('Letzter manuell gelesener Wert') }}</strong></td>
-			<td class="py-1" colspan="4">
-				<span id="last_read_cmd">{{ last_read_cmd + ": " if last_read_cmd else '---' }} </span> <span id="last_read_val">{{ last_read_value }}</span>
-			</td>
+			<td class="py-1" colspan="3"><strong>{{ _('Letzter manuell gelesener Wert') }}</strong></td>
+			<td class="py-1"><span id="last_read_cmd">{{ last_read_cmd + ": " if last_read_cmd else '---' }} </span></td>
+			<td class="py-1"><span id="last_read_val">{{ last_read_value }}</span></td>
 			<td></td>
 		</tr>
 	</tbody>
 </table>
 {% endblock headtable %}
+
+{% block buttons %}
+    <form id="form_clear" action="" method="POST">
+    	<button id="clear" class="btn btn-shng btn-sm" type="submit">Gelesene Werte löschen</button>
+    </form>
+{% endblock %}
 
 {% block bodytab1 %}
 <div class="table-responsive" style="margin-left: 2px; margin-right: 2px;" class="row">
@@ -196,6 +262,22 @@
 					   	</tr>
 					</thead>
 					<tbody>
+					        <tr>
+					            <td>{{ _('_Custom') }}</td>
+					            <td><input id="cust_addr" name="cust_addr" type="text" minlength="4" maxlength="4" size="6" pattern="[0-9a-fA-F]{4}" title="{{ _('vierstellige Hex-Adresse') }}" /></td>
+					            <td><input id="cust_len" name="cust_len" type="number" value="2" min="1" max="8" title="{{ _('Zahl von 1 bis 8') }}" /></td>
+					            <td>
+					            	<select id="cust_unit" name="cust_unit">
+					            		{% for unit in units %}
+					            		<option {% if unit == 'IUINT' %}selected="selected" {% endif %} value="{{ unit }}">{{ unit }}</option>
+					            		{% endfor %}
+					            	</select>
+					            </td>
+					            <td>False</td>
+					            <td><button class="btn btn-shng btn-sm" type="button" onclick="$('#button').val('');$('#button_pressed').submit();">lesen</button></td>
+					            <td><span id="addrcust">&nbsp;</span></td>
+					        </tr>
+
 					    {% for cmd in cmds.keys() %}
 					        <tr>
 					            <td>{{ cmd }}</td>

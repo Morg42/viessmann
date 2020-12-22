@@ -18,7 +18,11 @@ plugin_translations:
     'Einheit':             {'de': '=', 'en': 'Unit'}
     'Schreibbar':          {'de': '=', 'en': 'Writable'}
     'Datenpunkt lesen':    {'de': '=', 'en': 'Read data point'}
+    'Zahl von 1 bis 8':    {'de': '=', 'en': 'Number between 1 and 8'}
+    '_Custom':              {'de': '=', 'en': '='}
+    'lesen':               {'de': '=', 'en': 'read'}
 
     'Letzte Aktualisierung': {'de': '=', 'en': 'Last update'}
+    'vierstellige Hex-Adresse': {'de': '=', 'en': 'four-digit hex address'}
     'Letzter manuell gelesener Wert': {'de': '=', 'en': 'Last manually read value'}
     'Items für diese Instanz definiert': {'de': '=', 'en': 'items defined for this instance'}
