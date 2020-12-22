@@ -1686,6 +1686,7 @@ class Viessmann(SmartPlugin):
         '''
         commandname = self._commandname_by_commandcode(addr)
         if commandname is None:
+            self.logger.debug('Address {} not defined in commandset, aborting'.format(addr))
             return None
 
         self.logger.debug('Attempting to read address {} for command {}'.format(addr, commandname))
@@ -1706,7 +1707,7 @@ class Viessmann(SmartPlugin):
 
         return value
 
-    def read_temp_addr(self, addr, len, unit):
+    def read_temp_addr(self, addr, length, unit):
         '''
         Tries to read an arbitrary supplied data point indepently of device config
 
@@ -1720,18 +1721,41 @@ class Viessmann(SmartPlugin):
         '''
 
         # as we have no reference whatever concerning the supplied data, we do a few sanity checks...
-        if len(addr) != 4:
+
+        if len(addr) != 4:              # addresses are 2 bytes
+            self.logger.warning(f'temp address: address not 4 digits long: {addr}')
             return None
 
-        for c in addr:
+        for c in addr:                  # addresses are hex strings
             if c not in '0123456789abcdefABCDEF':
+                self.logger.warning(f'temp address: address digit "{c}"" is not hex char')
                 return None
 
-        if len < 1 or len > 8:  # empiritistical choice
+        if length < 1 or length > 8:          # empiritistical choice
+            self.logger.warning(f'temp address: len is not > 0 and < 9: {len}')
             return None
 
-        if unit not in self._unitset:
-            pass
+        if unit not in self._unitset:   # units need to be predefined
+            self.logger.warning(f'temp address: unit {unit} not in unitset. Cannot use custom units.')
+            return None
+
+        # addr already known?
+        if addr in self._commandset:
+            cmd = self._commandname_by_commandcode(addr)
+            self.logger.info(f'temp address {addr} already known for command {cmd}')
+        else:
+            # create temp commandset
+            cmd = 'temp_cmd'
+            cmdconf = {'addr': addr, 'len': length, 'unit': unit, 'set': False}
+            self.logger.debug(f'Adding temporary command config {cmdconf} for command "temp_cmd"')
+            self._commandset[cmd] = cmdconf
+
+        res = self.read_addr(addr)
+
+        if cmd == 'temp_cmd':
+            del self._commandset['temp_cmd']
+
+        return res
 
     #
     # webinterface
@@ -1803,6 +1827,8 @@ class WebInterface(SmartPluginWebIf):
 
         self.cmdset = cmdset
 
+        self._last_read = {}
+
         self._read_addr = None
         self._read_cmd = ''
         self._read_val = ''
@@ -1847,7 +1873,7 @@ class WebInterface(SmartPluginWebIf):
         :param dataSet: Dataset for which the data should be returned (standard: None)
         :return: dict with the data needed to update the web page.
         """
-        if dataSet is not None:
+        if dataSet is None:
             # get the new data
             # data = {}
 

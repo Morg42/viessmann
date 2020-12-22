@@ -1,18 +1,24 @@
 plugin_translations:
     # Translations for the plugin specially for the web interface
     'Viessmann Items':     {'de': '=', 'en': '='}
-    'AktiveDatenpunkte':   {'de': '=', 'en': 'Used Command Codes'}
-    'Serieller Port':      {'de': '=', 'en': 'Serialport'}
+    'Aktive Datenpunkte':  {'de': '=', 'en': 'Used command codes'}
+    'Alle Datenpunkte':    {'de': '=', 'en': 'Defined command codes'}
+    'Serieller Port':      {'de': '=', 'en': 'Serial port'}
     'Anzahl Items':        {'de': '=', 'en': 'Item count'}
     'Heizungstyp':         {'de': '=', 'en': 'Heating Type'}
     'Verbunden':           {'de': '=', 'en': 'Connected'}
     'Protokoll':           {'de': '=', 'en': 'Protocol'}
     'Verbindung aktiv':    {'de': '=', 'en': 'Initialized'}
-    'Datenpunkt':          {'de': '=', 'en': 'Code'}
+    'Datenpunkt':          {'de': '=', 'en': 'Data point'}
     'Befehlsname':         {'de': '=', 'en': 'Command name'}
     'Typ':                 {'de': '=', 'en': 'Type'}
     'Wert':                {'de': '=', 'en': 'Value'}
     'Item':                {'de': '=', 'en': '='}
+    'Länge':               {'de': '=', 'en': 'Length'}
+    'Einheit':             {'de': '=', 'en': 'Unit'}
+    'Schreibbar':          {'de': '=', 'en': 'Writable'}
+    'Datenpunkt lesen':    {'de': '=', 'en': 'Read data point'}
 
     'Letzte Aktualisierung': {'de': '=', 'en': 'Last update'}
+    'Letzter manuell gelesener Wert': {'de': '=', 'en': 'Last manually read value'}
     'Items für diese Instanz definiert': {'de': '=', 'en': 'items defined for this instance'}

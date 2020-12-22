@@ -11,6 +11,7 @@ plugin:
     state: ready                    # change to ready when done with development
     version: 1.2.0                  # Plugin version
     sh_minversion: 1.6.0            # minimum shNG version to use this plugin
+    py_minversion: 3.6
     multi_instance: false           # plugin supports multi instance
     restartable: unknown
     classname: Viessmann            # class containing the plugin
@@ -149,5 +150,47 @@ item_structs:
 logic_parameters: NONE
 # Definition of logic parameters defined by this plugin
 
-plugin_functions: NONE
-# Definition of plugin functions defined by this plugin
+plugin_functions:
+    update_all_read_items:
+        type: NONE
+        description:
+            de: 'Stößt das Lesen aller konfigurierten Items an'
+            en: 'Triggers reading of all configured items'
+        parameters: NONE
+    read_addr:
+        type: foo
+        description:
+            de: 'Stößt das Lesen des angegebenen Datenpunkts an, der nicht an ein Item gebunden sein muss. Es erfolgt keine Zuweisung an ein Item. Rückgabewert ist der gelesene Wert, oder NONE bei Fehler.'
+            en: 'Triggers reading of the supplied data point, which doesn''t have to be bound to an item. Result will not be assigned to an item. Return value is the read value, or NONE if an error occurred.'
+        parameters:
+            addr:
+                type: str
+                description:
+                    de: 'Vierstellige Hex-Adresse des Datenpunktes'
+                    en: 'Four-digit hex address of the data point'
+    read_temp_addr:
+        type: foo
+        description:
+            de: 'Stößt das Lesen eines beliebigen Datenpunkts an, der nicht konfiguriert oder bekannt sein muss. Es erfolgt keine Zuweisung an ein Item. Rückgabewert ist der gelesene Wert, oder NONE bei Fehler.'
+            en: 'Triggers reading of an arbitrary data point, which doesn''t have to be configured or known. Result will not be assigned to an item. Return value is the read value, or NONE if an error occurred.'
+        parameters:
+            addr:
+                type: str
+                mandatory: yes
+                description:
+                    de: 'Vierstellige Hex-Adresse des Datenpunktes'
+                    en: 'Four-digit hex address of the data point'
+            length:
+                type: int
+                mandatory: yes
+                description:
+                    de: 'Länge der Geräteantwort in Bytes (1-8)'
+                    en: 'Lengh of device response in bytes (1-8)'
+                valid_min: 1
+                valid_max: 8
+            unit:
+                type: str
+                mandatory: yes
+                description:
+                    de: 'Einheitencode für die Konvertierung der Antwort. Muss in der Protokollkonfiguration ``unitset`` in commands.py definiert sein.'
+                    en: 'Unit code for converting the response value. Needs to be defined in the protocol configuration ``unitset`` in commands.py'

@@ -18,6 +18,7 @@ You can configure the plugin to connect by direct serial connection on the host 
 * Refactored code for byte conversion
 * Added routines for bulk reading in KW protocol
 * Improved error and lock handling
+* Added plugin functions to manually query the device
 
 ### 1.1.0 
 
@@ -268,3 +269,11 @@ Currently there is no logic configuration for this plugin.
 ### update_all_read_items()
 
 The function update_all_read_items() can be used to trigger read operations on all configured items.
+
+### read_addr(addr)
+
+The function tries to read the pre-configured datapoint at address ``addr``. No value is assigned to an item. The resulting value is returned, or None if an error occurred.
+
+### read_temp_addr(addr, length, unit)
+
+The function tries to read the datapoint at address ``addr``. The datapoint doesn't need to be known or configured. To this end, the length of the reply (in bytes) and the unitcode according to commands.py needs to be submitted. No value is assigned to an item. The resulting value is returned, or None if an error occurred.
