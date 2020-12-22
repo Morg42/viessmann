@@ -1876,15 +1876,11 @@ class WebInterface(SmartPluginWebIf):
         return {}
 
     @cherrypy.expose
-    def button_pressed(self, button=None):
+    def submit(self, button=None):
         '''
-        Process data from the webpage submitted via form
+        Submit handler for Ajax
+        '''
 
-        :param button: Value of the button element
-        '''
-        # valid data submitted?
-#
-        self.logger.debug(f'button_pressed got data {button}')
         if button is not None:
 
             read_val = self.plugin.read_addr(button)
@@ -1893,12 +1889,12 @@ class WebInterface(SmartPluginWebIf):
                 read_val = 'Fehler beim Lesen'
 
             read_cmd = self.plugin._commandname_by_commandcode(button)
-#
-            self.logger.debug(f'Got cmd name {read_cmd}')
             if read_cmd is not None:
                 self._last_read[button] = {'addr': button, 'cmd': read_cmd, 'val': read_val}
                 self._last_read['last'] = self._last_read[button]
-        raise cherrypy.HTTPRedirect('index')
+
+        cherrypy.response.headers['Content-Type'] = 'application/json'
+        return json.dumps(self._last_read).encode('utf-8')
 
 
 if __name__ == '__main__':
