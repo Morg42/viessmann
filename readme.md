@@ -19,6 +19,7 @@ You can configure the plugin to connect by direct serial connection on the host 
 * Added routines for bulk reading in KW protocol
 * Improved error and lock handling
 * Added plugin functions to manually query the device
+* Rewrote WebIf for enhanced functions and Ajax support
 
 ### 1.1.0 
 
