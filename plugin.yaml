@@ -156,7 +156,6 @@ plugin_functions:
         description:
             de: 'Stößt das Lesen aller konfigurierten Items an'
             en: 'Triggers reading of all configured items'
-        parameters: NONE
     read_addr:
         type: foo
         description:
