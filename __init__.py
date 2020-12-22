@@ -1593,7 +1593,7 @@ class Viessmann(SmartPlugin):
         :return: Converted hex string
         :rtype: str
         '''
-        return ''.join('{02x}'.format(c) for c in bytesvalue)
+        return ''.join('{:02x}'.format(c) for c in bytesvalue)
 
     def _decode_rawvalue(self, rawdatabytes, commandsigned):
         '''
