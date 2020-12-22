@@ -23,6 +23,7 @@ import logging
 import sys
 import time
 import re
+import json
 import serial
 import socket
 import threading
@@ -1379,9 +1380,9 @@ class Viessmann(SmartPlugin):
                 self.logger.debug('Matched command {} and read transformed device type {} (raw value was {}) and byte length {}'.format(commandname, value, devicetypebytes, commandvaluebytes))
             elif commandunit == 'SN':
                 # serial number has 7 bytes,
-                serialnummerbytes = rawdatabytes[:7]
-                value = self._serialnumber_decode(serialnummerbytes)
-                self.logger.debug('Matched command {} and read transformed device type {} (raw value was {}) and byte length {}'.format(commandname, value, devicetypebytes, commandvaluebytes))
+                serialnumberbytes = rawdatabytes[:7]
+                value = self._serialnumber_decode(serialnumberbytes)
+                self.logger.debug('Matched command {} and read transformed device type {} (raw value was {}) and byte length {}'.format(commandname, value, serialnumberbytes, commandvaluebytes))
             else:
                 rawvalue = self._bytes2int(rawdatabytes, commandsigned)
                 value = self._value_transform_read(rawvalue, valuetransform)
@@ -1718,14 +1719,14 @@ class Viessmann(SmartPlugin):
             devicetypes = str(value)
         return devicetypes
 
-    def _serialnumber_decode(self, serialnummerbytes):
+    def _serialnumber_decode(self, serialnumberbytes):
         '''
         Decode serial number from device response
         '''
         serialnumber = 0
-        serialnummerbytes.reverse()
-        for byte in range(0, len(serialnummerbytes)):
-            serialnumber += (serialnummerbytes[byte] - 48) * 10 ** byte
+        serialnumberbytes.reverse()
+        for byte in range(0, len(serialnumberbytes)):
+            serialnumber += (serialnumberbytes[byte] - 48) * 10 ** byte
         return hex(serialnumber).upper()
 
     def _commandname_by_commandcode(self, commandcode):
@@ -1773,7 +1774,7 @@ class Viessmann(SmartPlugin):
             self.logger.warning('Not initializing the web interface')
             return False
 
-        if 'SmartPluginWebI' not in list(sys.modules['lib.model.smartplugin'].__dict__):
+        if 'SmartPluginWebIf' not in list(sys.modules['lib.model.smartplugin'].__dict__):
             self.logger.warning('Web interface needs SmartHomeNG v1.5 or later. Not initializing the web interface')
             return False
 
@@ -1823,12 +1824,15 @@ class WebInterface(SmartPluginWebIf):
 
         self.cmdset = cmdset
 
+        self._last_read = {}
+        self._last_read['last'] = {'addr': None, 'val': '', 'cmd': ''}
+
         self._read_addr = None
         self._read_cmd = ''
         self._read_val = ''
 
     @cherrypy.expose
-    def index(self, reload=None, read_addr=None):
+    def index(self, reload=None):
         '''
         Build index.html for cherrypy
 
@@ -1836,15 +1840,6 @@ class WebInterface(SmartPluginWebIf):
 
         :return: contents of the template after beeing rendered
         '''
-        self._read_val = ''
-        self._read_addr = ''
-        self._read_cmd = ''
-        if read_addr is not None:
-            self._read_addr = read_addr
-            self._read_val = self.plugin.read_addr(read_addr)
-            self._read_cmd = self.plugin._commandname_by_commandcode(self._read_addr)
-            if self._read_val is None:
-                self._read_val = 'Fehler beim Lesen'
 
         tmpl = self.tplenv.get_template('index.html')
         # add values to be passed to the Jinja2 template eg: tmpl.render(p=self.plugin, interface=interface, ...)
@@ -1852,9 +1847,9 @@ class WebInterface(SmartPluginWebIf):
         return tmpl.render(p=self.plugin,
                            items=sorted(self.items.return_items(), key=lambda k: str.lower(k['_path'])),
                            cmds=self.cmdset,
-                           last_read_addr=self._read_addr,
-                           last_read_value=self._read_val,
-                           last_read_cmd=self._read_cmd
+                           last_read_addr=self._last_read['last']['addr'],
+                           last_read_value=self._last_read['last']['val'],
+                           last_read_cmd=self._last_read['last']['cmd']
                            )
 
     @cherrypy.expose
@@ -1868,21 +1863,42 @@ class WebInterface(SmartPluginWebIf):
         :return: dict with the data needed to update the web page.
         '''
         if dataSet is None:
-            # get the new data
-            # data = {}
+            data = {}
 
-            # data['item'] = {}
-            # for i in self.plugin.items:
-            #     data['item'][i]['value'] = self.plugin.getitemvalue(i)
-            #
+            data['item'] = self._last_read
             # return it as json the the web page
-            # try:
-            #     return json.dumps(data)
-            # except Exception as e:
-            #     self.logger.error('get_data_html exception: {}'.format(e))
+            try:
+                return json.dumps(data)
+            except Exception as e:
+                self.logger.error('get_data_html exception: {}'.format(e))
             pass
 
         return {}
+
+    @cherrypy.expose
+    def button_pressed(self, button=None):
+        '''
+        Process data from the webpage submitted via form
+
+        :param button: Value of the button element
+        '''
+        # valid data submitted?
+#
+        self.logger.debug(f'button_pressed got data {button}')
+        if button is not None:
+
+            read_val = self.plugin.read_addr(button)
+            if read_val is None:
+                self.logger.debug('Error trying to read addr {}'.format(button))
+                read_val = 'Fehler beim Lesen'
+
+            read_cmd = self.plugin._commandname_by_commandcode(button)
+#
+            self.logger.debug(f'Got cmd name {read_cmd}')
+            if read_cmd is not None:
+                self._last_read[button] = {'addr': button, 'cmd': read_cmd, 'val': read_val}
+                self._last_read['last'] = self._last_read[button]
+        raise cherrypy.HTTPRedirect('index')
 
 
 if __name__ == '__main__':

@@ -14,18 +14,26 @@
 {% block pluginscripts %}
 {#
 <script>
-	function handleUpdatedData(response, dataSet=null) {
-		if (dataSet === 'devices_info' || dataSet === null) {
-			var objResponse = JSON.parse(response);
-			myProto = document.getElementById(dataSet);
-			for (var device in objResponse) {
-				<!--
-				shngInsertText (device+'_source', objResponse[device]['source']);
-				shngInsertText (device+'_powerState', objResponse[device]['powerState']);
-				-->
-			}
-		}
-	}
+    function handleUpdatedData(response, dataSet = null) {
+        if (dataSet === null) {
+            var response = JSON.parse(response);
+
+            // set last read data in header block
+            var last = response['last'];
+            var last_str = "";
+            if (last['cmd'] != "") {
+            	last_str = last['cmd'] + ": ";
+            } else {
+            	last_str = "---";
+            }
+            shngInsertText('last_read_cmd', last_str )
+            shngInsertText('last_read_val', last['val'])
+
+            // set appropriate value in tab3
+            var elem = "addr" + last['addr']
+            shngInsertText(elem, last['val'])
+        }
+    }
 </script>
 
 #}
@@ -168,7 +176,8 @@ $(document).ready( function () {
 <div class="table-responsive" style="margin-left: 2px; margin-right: 2px;" class="row">
 	<div class="col-sm-12">
 		{% if cmds|length %}
-			<form id="readfrm" method="post" action="">
+			<form id="button_pressed" action="button_pressed" method="post">
+				<input type="hidden" id="button" name="button" value="" />
 			    <table id="addrtable" class="table table-striped table-hover">
 				    <thead>
 					    <tr>
@@ -189,7 +198,7 @@ $(document).ready( function () {
 					            <td>{{ cmds[cmd]['unit'] }}</td>
 					            <td>{{ cmds[cmd]['set'] }}</td>
 					            <td>
-					            		<button id="btn{{ cmds[cmd]['addr'] }}" name="read_addr" type="submit" value="{{ cmds[cmd]['addr'] }}">lesen</button>
+					            		<button class="btn btn-shng btn-sm" type="button" onclick="$('#button').val('{{ cmds[cmd]['addr'] }}');$('#button_pressed').submit();">lesen</button>
 					            		<span id="addr{{ cmds[cmd]['addr'] }}">&nbsp;</span>
 					            </td>
 					        </tr>
