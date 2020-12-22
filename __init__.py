@@ -92,29 +92,29 @@ class Viessmann(SmartPlugin):
         # Load protocol dependent sets
         if self._protocol in commands.controlset and self._protocol in commands.errorset and self._protocol in commands.unitset and self._protocol in commands.returnstatus and self._protocol in commands.setreturnstatus:
             self._controlset = commands.controlset[self._protocol]
-            self.logger.debug(f'Loaded controlset for protocol {self._controlset}')
+            self.logger.debug('Loaded controlset for protocol {}'.format(self._controlset))
             self._errorset = commands.errorset[self._protocol]
-            self.logger.debug(f'Loaded errors for protocol {self._errorset}')
+            self.logger.debug('Loaded errors for protocol {}'.format(self._errorset))
             self._unitset = commands.unitset[self._protocol]
-            self.logger.debug(f'Loaded units for protocol {self._unitset}')
+            self.logger.debug('Loaded units for protocol {}'.format(self._unitset))
             self._devicetypes = commands.devicetypes
-            self.logger.debug(f'Loaded device types for protocol {self._devicetypes}')
+            self.logger.debug('Loaded device types for protocol {}'.format(self._devicetypes))
             self._returnstatus = commands.returnstatus[self._protocol]
-            self.logger.debug(f'Loaded return status for protocol {self._returnstatus}')
+            self.logger.debug('Loaded return status for protocol {}'.format(self._returnstatus))
             self._setreturnstatus = commands.setreturnstatus[self._protocol]
-            self.logger.debug(f'Loaded set return status for protocol {self._setreturnstatus}')
+            self.logger.debug('Loaded set return status for protocol {}'.format(self._setreturnstatus))
         else:
-            self.logger.error(f'Sets for protocol {self._protocol} could not be found or incomplete!')
+            self.logger.error('Sets for protocol {} could not be found or incomplete!'.format(self._protocol))
             return None
 
         # Load device dependent sets
         if self._heating_type in commands.commandset and self._heating_type in commands.operatingmodes and self._heating_type in commands.systemschemes:
             self._commandset = commands.commandset[self._heating_type]
-            self.logger.debug(f'Loaded commands for heating type {self._commandset}')
+            self.logger.debug('Loaded commands for heating type {}'.format(self._commandset))
             self._operatingmodes = commands.operatingmodes[self._heating_type]
-            self.logger.debug(f'Loaded operating modes for heating type {self._operatingmodes}')
+            self.logger.debug('Loaded operating modes for heating type {}'.format(self._operatingmodes))
             self._systemschemes = commands.systemschemes[self._heating_type]
-            self.logger.debug(f'Loaded system schemes for heating type {self._systemschemes}')
+            self.logger.debug('Loaded system schemes for heating type {}'.format(self._systemschemes))
         else:
             sets = []
             if self._heating_type not in commands.commandset:
@@ -124,10 +124,10 @@ class Viessmann(SmartPlugin):
             if self._heating_type not in commands.systemschemes:
                 sets += 'system schemes'
 
-            self.logger.error(f'Sets {", ".join(sets)} for heating type {self._heating_type} could not be found!')
+            self.logger.error('Sets {} for heating type {} could not be found!'.format(", ".join(sets), self._heating_type))
             return None
 
-        self.logger.info(f'Loaded configuration for heating type {self._heating_type} with protocol {self._protocol}')
+        self.logger.info('Loaded configuration for heating type {} with protocol {}'.format(self._heating_type, self._protocol))
 
         # Init web interface
         self.init_webinterface()
@@ -163,7 +163,7 @@ class Viessmann(SmartPlugin):
         '''
         # Process the update config
         if self.has_iattr(item.conf, 'viess_update'):
-            self.logger.debug(f'Item for requesting update for all items triggered: {item}')
+            self.logger.debug('Item for requesting update for all items triggered: {}'.format(item))
             return self.update_item
 
         # Process the timer config and fill timer dict
@@ -172,7 +172,7 @@ class Viessmann(SmartPlugin):
             for commandname in self._commandset:
                 if commandname.startswith(timer_app):
                     commandconf = self._commandset[commandname]
-                    self.logger.debug(f'Process the timer config, commandname: {commandname}')
+                    self.logger.debug('Process the timer config, commandname: {}'.format(commandname))
                     # {'addr': '2100', 'len': 8, 'unit': 'CT', 'set': True}
                     commandcode = (commandconf['addr']).lower()
                     if timer_app not in self._application_timer:
@@ -180,7 +180,7 @@ class Viessmann(SmartPlugin):
                     if commandcode not in self._application_timer[timer_app]['commandcodes']:
                         self._application_timer[timer_app]['commandcodes'].append(commandcode)
                     self._application_timer[timer_app]['commandcodes'].sort()
-            self.logger.info(f'Loaded Application Timer {self._application_timer}')
+            self.logger.info('Loaded Application Timer {}'.format(self._application_timer))
             # self._application_timer: {'Timer_M2': {'item': Item: heizung.heizkreis_m2.schaltzeiten, 'commandcodes': ['3000', '3008', '3010', '3018', '3020', '3028', '3030']}, 'Timer_Warmwasser': {'item': Item: heizung.warmwasser.schaltzeiten, 'commandcodes': ['2100', '2108', '2110', '2118', '2120', '2128', '2130']}}
 
             for subdict in self._application_timer:
@@ -188,36 +188,36 @@ class Viessmann(SmartPlugin):
                     if commandcode not in self._timer_cmds:
                         self._timer_cmds.append(commandcode)
             self._timer_cmds.sort()
-            self.logger.debug(f'Loaded Timer commands {self._timer_cmds}')
+            self.logger.debug('Loaded Timer commands {}'.format(self._timer_cmds))
             return self.update_item
 
         # Process the read config
         if self.has_iattr(item.conf, 'viess_read'):
             commandname = self.get_iattr_value(item.conf, 'viess_read')
             if commandname is None or commandname not in self._commandset:
-                self.logger.error(f'Item {item} contains invalid read command {commandname}!')
+                self.logger.error('Item {} contains invalid read command {}!'.format(item, commandname))
                 return None
 
             # Remember the read config to later update this item if the configured response comes in
-            self.logger.info(f'Item {item} reads by using command {commandname}')
+            self.logger.info('Item {} reads by using command {}'.format(item, commandname))
             commandconf = self._commandset[commandname]
             commandcode = (commandconf['addr']).lower()
 
             # Fill item dict
             self._params[commandcode] = {'item': item, 'commandname': commandname}
-            self.logger.debug(f'Loaded params {self._params}')
+            self.logger.debug('Loaded params {}'.format(self._params))
 
             # Allow items to be automatically initiated on startup
             if self.has_iattr(item.conf, 'viess_init') and self.get_iattr_value(item.conf, 'viess_init'):
-                self.logger.info(f'Item {item} is initialized on startup')
+                self.logger.info('Item {} is initialized on startup'.format(item))
                 if commandcode not in self._init_cmds:
                     self._init_cmds.append(commandcode)
-                self.logger.debug(f'CommandCodes should be read at init: {self._init_cmds}')
+                self.logger.debug('CommandCodes should be read at init: {}'.format(self._init_cmds))
 
             # Allow items to be cyclically updated
             if self.has_iattr(item.conf, 'viess_read_cycle'):
                 cycle = int(self.get_iattr_value(item.conf, 'viess_read_cycle'))
-                self.logger.info(f'Item {item} should read cyclic every {cycle} seconds')
+                self.logger.info('Item {} should read cyclic every {} seconds'.format(item, cycle))
                 nexttime = time.time() + cycle
                 if commandcode not in self._cyclic_cmds:
                     self._cyclic_cmds[commandcode] = {'cycle': cycle, 'nexttime': nexttime}
@@ -225,7 +225,7 @@ class Viessmann(SmartPlugin):
                     # If another item requested this command already with a longer cycle, use the shorter cycle now
                     if self._cyclic_cmds[commandcode]['cycle'] > cycle:
                         self._cyclic_cmds[commandcode]['cycle'] = cycle
-                self.logger.debug(f'CommandCodes should be read cyclic: {self._cyclic_cmds}')
+                self.logger.debug('CommandCodes should be read cyclic: {}'.format(self._cyclic_cmds))
 
         # Process the write config
         if self.has_iattr(item.conf, 'viess_send'):
@@ -235,10 +235,10 @@ class Viessmann(SmartPlugin):
                 commandname = self.get_iattr_value(item.conf, 'viess_send')
 
             if commandname is None or commandname not in self._commandset:
-                self.logger.error(f'Item {item} contains invalid write command {commandname}!')
+                self.logger.error('Item {} contains invalid write command {}!'.format(item, commandname))
                 return None
             else:
-                self.logger.info(f'Item {item} to be written by using command {commandname}')
+                self.logger.info('Item {} to be written by using command {}'.format(item, commandname))
                 return self.update_item
 
     def parse_logic(self, logic):
@@ -254,8 +254,8 @@ class Viessmann(SmartPlugin):
         :param dest: if given it represents the dest
         '''
         if self.alive and caller != self.get_shortname():
-            self.logger.info(f'Update item: {item.id()}, item has been changed outside this plugin')
-            self.logger.debug(f'update_item was called with item {item} from caller {caller}, source {source} and dest {dest}')
+            self.logger.info('Update item: {}, item has been changed outside this plugin'.format(item.id()))
+            self.logger.debug('update_item was called with item {} from caller {}, source {} and dest {}'.format(item, caller, source, dest))
 
             if self.has_iattr(item.conf, 'viess_send'):
                 # Send write command
@@ -264,11 +264,11 @@ class Viessmann(SmartPlugin):
                 else:
                     commandname = self.get_iattr_value(item.conf, 'viess_send')
                 value = item()
-                self.logger.debug(f'Got item value to be written: {value} on command name {commandname}')
+                self.logger.debug('Got item value to be written: {} on command name {}'.format(value, commandname))
                 if not self._send_command(commandname, value):
                     # create_write_command() liefert False, wenn das Schreiben fehlgeschlagen ist
                     # -> dann auch keine weitere Verarbeitung
-                    self.logger.debug(f'Write for {commandname} with value {value} failed, reverting value, canceling followup actions')
+                    self.logger.debug('Write for {} with value {} failed, reverting value, canceling followup actions'.format(commandname, value))
                     item(item.property.last_value, self.get_shortname())
                     return None
 
@@ -276,7 +276,7 @@ class Viessmann(SmartPlugin):
                 if self.has_iattr(item.conf, 'viess_read') and self.has_iattr(item.conf, 'viess_read_afterwrite'):
                     readcommandname = self.get_iattr_value(item.conf, 'viess_read')
                     readafterwrite = self.get_iattr_value(item.conf, 'viess_read_afterwrite')
-                    self.logger.debug(f'Attempting read after write for item {item}, command {readcommandname}, delay {readafterwrite}')
+                    self.logger.debug('Attempting read after write for item {}, command {}, delay {}'.format(item, readcommandname, readafterwrite))
                     if readcommandname is not None and readafterwrite is not None:
                         aw = float(readafterwrite)
                         time.sleep(aw)
@@ -286,7 +286,7 @@ class Viessmann(SmartPlugin):
                 if self.has_iattr(item.conf, 'viess_trigger'):
                     trigger = self.get_iattr_value(item.conf, 'viess_trigger')
                     if trigger is None:
-                        self.logger.error(f'Item {item} contains invalid trigger command list {trigger}!')
+                        self.logger.error('Item {} contains invalid trigger command list {}!'.format(item, trigger))
                     else:
                         tdelay = 5  # default delay
                         if self.has_iattr(item.conf, 'viess_trigger_afterwrite'):
@@ -296,14 +296,14 @@ class Viessmann(SmartPlugin):
                         for triggername in trigger:
                             triggername = triggername.strip()
                             if triggername is not None and readafterwrite is not None:
-                                self.logger.debug(f'Triggering command {triggername} after write for item {item}')
+                                self.logger.debug('Triggering command {} after write for item {}'.format(triggername, item))
                                 time.sleep(tdelay)
                                 self._send_command(triggername)
 
             elif self.has_iattr(item.conf, 'viess_timer'):
                 timer_app = self.get_iattr_value(item.conf, 'viess_timer')
                 uzsu_dict = item()
-                self.logger.debug(f'Got changed UZSU timer: {uzsu_dict} on timer application {timer_app}')
+                self.logger.debug('Got changed UZSU timer: {} on timer application {}'.format(uzsu_dict, timer_app))
                 self._uzsu_dict_to_viess_timer(timer_app, uzsu_dict)
 
             elif self.has_iattr(item.conf, 'viess_update'):
@@ -349,14 +349,14 @@ class Viessmann(SmartPlugin):
                     return
 
                 commandname = self._commandname_by_commandcode(addr)
-                self.logger.debug(f'Triggering cyclic read command: {commandname}')
+                self.logger.debug('Triggering cyclic read command: {}'.format(commandname))
                 self._send_command(commandname, )
                 entry['nexttime'] = currenttime + entry['cycle']
                 read_items += 1
 
         self._cyclic_update_active = False
         if read_items:
-            self.logger.debug(f'cyclic command read took {(time.time() - currenttime):.1f} seconds for {read_items} items')
+            self.logger.debug('cyclic command read took {:.1f} seconds for {} items'.format(time.time() - currenttime, read_items))
 
     def update_all_read_items(self):
         '''
@@ -364,7 +364,7 @@ class Viessmann(SmartPlugin):
         '''
         for commandcode in list(self._params.keys()):
             commandname = self._commandname_by_commandcode(commandcode)
-            self.logger.debug(f'Triggering read command: {commandname} for requested value update')
+            self.logger.debug('Triggering read command: {} for requested value update'.format(commandname))
             self._send_command(commandname)
 
     def read_addr(self, addr):
@@ -377,10 +377,10 @@ class Viessmann(SmartPlugin):
         '''
         commandname = self._commandname_by_commandcode(addr)
         if commandname is None:
-            self.logger.debug(f'Address {addr} not defined in commandset, aborting')
+            self.logger.debug('Address {} not defined in commandset, aborting'.format(addr))
             return None
 
-        self.logger.debug(f'Attempting to read address {addr} for command {commandname}')
+        self.logger.debug('Attempting to read address {} for command {}'.format(addr, commandname))
 
         (packet, responselen) = self._build_command_packet(commandname)
         if packet is None:
@@ -413,31 +413,31 @@ class Viessmann(SmartPlugin):
         # as we have no reference whatever concerning the supplied data, we do a few sanity checks...
 
         if len(addr) != 4:              # addresses are 2 bytes
-            self.logger.warning(f'temp address: address not 4 digits long: {addr}')
+            self.logger.warning('temp address: address not 4 digits long: {}'.format(addr))
             return None
 
         for c in addr:                  # addresses are hex strings
-            if c not in '0123456789abcdefABCDEF':
-                self.logger.warning(f'temp address: address digit "{c}" is not hex char')
+            if c not in '0123456789abcdefABCDE':
+                self.logger.warning('temp address: address digit "{}" is not hex char'.format(c))
                 return None
 
         if length < 1 or length > 8:          # empiritistical choice
-            self.logger.warning(f'temp address: len is not > 0 and < 9: {len}')
+            self.logger.warning('temp address: len is not > 0 and < 9: {}'.format(len))
             return None
 
         if unit not in self._unitset:   # units need to be predefined
-            self.logger.warning(f'temp address: unit {unit} not in unitset. Cannot use custom units')
+            self.logger.warning('temp address: unit {} not in unitset. Cannot use custom units'.format(unit))
             return None
 
         # addr already known?
         if addr in self._commandset:
             cmd = self._commandname_by_commandcode(addr)
-            self.logger.info(f'temp address {addr} already known for command {cmd}')
+            self.logger.info('temp address {} already known for command {}'.format(addr, cmd))
         else:
             # create temp commandset
             cmd = 'temp_cmd'
             cmdconf = {'addr': addr, 'len': length, 'unit': unit, 'set': False}
-            self.logger.debug(f'Adding temporary command config {cmdconf} for command temp_cmd')
+            self.logger.debug('Adding temporary command config {} for command temp_cmd'.format(cmdconf))
             self._commandset[cmd] = cmdconf
 
         res = self.read_addr(addr)
@@ -467,7 +467,7 @@ class Viessmann(SmartPlugin):
 
         self._lock.acquire()
         try:
-            self.logger.debug(f'Connecting to {self._serialport}..')
+            self.logger.debug('Connecting to {}..'.format(self._serialport))
             self._serial = serial.Serial()
             self._serial.baudrate = self._controlset['Baudrate']
             self._serial.parity = self._controlset['Parity']
@@ -484,14 +484,14 @@ class Viessmann(SmartPlugin):
                 self._serial.timeout = 0.5
             self._serial.open()
             self._connected = True
-            self.logger.info(f'Connected to {self._serialport}')
+            self.logger.info('Connected to {}'.format(self._serialport))
             self._connection_attempts = 0
 
             if not self.scheduler_get('cyclic'):
                 self._create_cyclic_scheduler()
             return True
         except Exception as e:
-            self.logger.error(f'Could not _connect to {self._serialport}; Error: {e}')
+            self.logger.error('Could not _connect to {}; Error: {}'.format(self._serialport, e))
             return False
         finally:
             self._lock.release()
@@ -541,10 +541,10 @@ class Viessmann(SmartPlugin):
             self.logger.debug('Init Communication....')
             is_initialized = False
             initstringsent = False
-            self.logger.debug(f'send_bytes: Send reset command {self._int2bytes(self._controlset["Reset_Command"], 1)}')
+            self.logger.debug('send_bytes: Send reset command {}'.format(self._int2bytes(self._controlset["Reset_Command"], 1)))
             self._send_bytes(self._int2bytes(self._controlset['Reset_Command'], 1))
             readbyte = self._read_bytes(1)
-            self.logger.debug(f'read_bytes: read {readbyte}, last byte is {self._lastbyte}')
+            self.logger.debug('read_bytes: read {}, last byte is {}'.format(readbyte, self._lastbyte))
 
             for i in range(0, 10):
                 if initstringsent and self._lastbyte == self._int2bytes(self._controlset['Acknowledge'], 1):
@@ -553,21 +553,21 @@ class Viessmann(SmartPlugin):
                     break
                 if self._lastbyte == self._int2bytes(self._controlset['Not_initiated'], 1):
                     self._send_bytes(self._int2bytes(self._controlset['Sync_Command'], 3))
-                    self.logger.debug(f'send_bytes: Send sync command {self._int2bytes(self._controlset["Sync_Command"], 3)}')
+                    self.logger.debug('send_bytes: Send sync command {}'.format(self._int2bytes(self._controlset["Sync_Command"], 3)))
                     initstringsent = True
                 elif self._lastbyte == self._int2bytes(self._controlset['Init_Error'], 1):
-                    self.logger.error(f'The interface has reported an error (\x15), loop increment {i}')
+                    self.logger.error('The interface has reported an error (\x15), loop increment {}'.format(i))
                     self._send_bytes(self._int2bytes(self._controlset['Reset_Command'], 1))
-                    self.logger.debug(f'send_bytes: Send reset command {self._int2bytes(self._controlset["Reset_Command"], 1)}')
+                    self.logger.debug('send_bytes: Send reset command {}'.format(self._int2bytes(self._controlset["Reset_Command"], 1)))
                     initstringsent = False
                 else:
                     self._send_bytes(self._int2bytes(self._controlset['Reset_Command'], 1))
-                    self.logger.debug(f'send_bytes: Send reset command {self._int2bytes(self._controlset["Reset_Command"], 1)}')
+                    self.logger.debug('send_bytes: Send reset command {}'.format(self._int2bytes(self._controlset["Reset_Command"], 1)))
                     initstringsent = False
                 readbyte = self._read_bytes(1)
-                self.logger.debug(f'read_bytes: read {readbyte}, last byte is {self._lastbyte}')
+                self.logger.debug('read_bytes: read {}, last byte is {}'.format(readbyte, self._lastbyte))
 
-            self.logger.debug(f'Communication initialized: {is_initialized}')
+            self.logger.debug('Communication initialized: {}'.format(is_initialized))
             self._initialized = is_initialized
 
         else:  # at the moment the only other supported protocol is 'KW' which is not stateful
@@ -597,7 +597,7 @@ class Viessmann(SmartPlugin):
             if self.scheduler_get('cyclic'):
                 self.scheduler_remove('cyclic')
             self.scheduler_add('cyclic', self.send_cyclic_cmds, cycle=workercycle, prio=5, offset=0)
-            self.logger.info(f'Added cyclic worker thread ({workercycle} sec cycle). Shortest item update cycle found: {shortestcycle} sec')
+            self.logger.info('Added cyclic worker thread ({} sec cycle). Shortest item update cycle found: {} sec'.format(workercycle, shortestcycle))
 
     def _read_initial_values(self):
         '''
@@ -610,10 +610,10 @@ class Viessmann(SmartPlugin):
             else:
                 for commandcode in self._init_cmds:
                     commandname = self._commandname_by_commandcode(commandcode)
-                    self.logger.debug(f'send_init_commands {commandname}')
+                    self.logger.debug('send_init_commands {}'.format(commandname))
                     self._send_command(commandname)
             self._initread = True
-            self.logger.debug(f'self._initread = {self._initread}')
+            self.logger.debug('self._initread = {}'.format(self._initread))
 
     #
     # send and receive commands
@@ -628,10 +628,10 @@ class Viessmann(SmartPlugin):
             for timer_app in self._application_timer:
                 for commandcode in self._application_timer[timer_app]['commandcodes']:
                     commandname = self._commandname_by_commandcode(commandcode)
-                    self.logger.debug(f'send_timer_commands {commandname}')
+                    self.logger.debug('send_timer_commands {}'.format(commandname))
                     self._send_command(commandname)
             self._timerread = True
-            self.logger.debug(f'Timer Readout done = {self._timerread}')
+            self.logger.debug('Timer Readout done = {}'.format(self._timerread))
             self._viess_dict_to_uzsu_dict()
 
     def _send_command(self, commandname, value=None):
@@ -647,9 +647,9 @@ class Viessmann(SmartPlugin):
         :param value: Value to write to device, None if command is read command
         '''
         if value is not None:
-            self.logger.debug(f'Got a new write job: Command {commandname} with value {value}')
+            self.logger.debug('Got a new write job: Command {} with value {}'.format(commandname, value))
         else:
-            self.logger.debug(f'Got a new read job: Command {commandname}')
+            self.logger.debug('Got a new read job: Command {}'.format(commandname))
 
         # Build packet with value bytes for write commands
         (packet, responselen) = self._build_command_packet(commandname, value)
@@ -683,10 +683,10 @@ class Viessmann(SmartPlugin):
         :type commandname: str
         '''
         if self._protocol != 'KW':
-            self.logger.error(f'Called _KW_send_multiple_read_commands, but protocol is {self._protocol}. This shouldn\'t happen..')
+            self.logger.error('Called _KW_send_multiple_read_commands, but protocol is {}. This should not happen...'.format(self._protocol))
             return
 
-        self.logger.debug(f'Got a new bulk read job: Commands {commandcodes}')
+        self.logger.debug('Got a new bulk read job: Commands {}'.format(commandcodes))
 
         bulk = {}
 
@@ -732,21 +732,21 @@ class Viessmann(SmartPlugin):
                 # send query
                 try:
                     self._send_bytes(bulk[addr]['packet'])
-                    self.logger.debug(f'Successfully sent packet: {self._bytes2hexstring(bulk[addr]["packet"])}')
+                    self.logger.debug('Successfully sent packet: {}'.format(self._bytes2hexstring(bulk[addr]["packet"])))
                 except IOError as io:
-                    raise IOError(f'IO Error: {io}')
+                    raise IOError('IO Error: {}'.format(io))
                     return
                 except Exception as e:
-                    raise Exception(f'Exception while sending: {e}')
+                    raise Exception('Exception while sending: {}'.format(e))
                     return
 
                 # receive response
                 replies[addr] = bytearray()
                 try:
-                    self.logger.debug(f'Trying to receive {bulk[addr]["responselen"]} bytes of the response')
+                    self.logger.debug('Trying to receive {} bytes of the response'.format(bulk[addr]["responselen"]))
                     chunk = self._read_bytes(bulk[addr]['responselen'])
 
-                    self.logger.debug(f'Received {len(chunk)} bytes chunk of response as hexstring {self._bytes2hexstring(chunk)} and as bytes {chunk}')
+                    self.logger.debug('Received {} bytes chunk of response as hexstring {} and as bytes {}'.format(len(chunk), self._bytes2hexstring(chunk), chunk))
                     if len(chunk) != 0:
                         replies[addr].extend(chunk)
                     else:
@@ -756,10 +756,10 @@ class Viessmann(SmartPlugin):
                     raise Exception('Error receiving response: time-out')
                     return
                 except IOError as io:
-                    raise IOError(f'IO Error: {io}')
+                    raise IOError('IO Error: {}'.format(io))
                     return
                 except Exception as e:
-                    raise Exception(f'Error receiving response: {e}')
+                    raise Exception('Error receiving response: {}'.format(e))
                     return
 
             # sent all read requests, time to parse the replies
@@ -770,12 +770,12 @@ class Viessmann(SmartPlugin):
                     self._process_response(replies[addr], bulk[addr]['command'], True)
 
         except IOError as io:
-            self.logger.error(f'KW_send_multiple_read_commands failed with IO error: {io}')
+            self.logger.error('KW_send_multiple_read_commands failed with IO error: {}'.format(io))
             self.logger.error('Trying to reconnect (disconnecting, connecting')
             self._disconnect()
             return
         except Exception as e:
-            self.logger.error(f'KW_send_multiple_read_commands failed with error: {e}')
+            self.logger.error('KW_send_multiple_read_commands failed with error: {}'.format(e))
             return
         finally:
             try:
@@ -800,18 +800,18 @@ class Viessmann(SmartPlugin):
 
         attempt = 0
         while attempt < retries:
-            self.logger.debug(f'Starting sync loop - attempt {attempt + 1}/{retries}')
+            self.logger.debug('Starting sync loop - attempt {}/{}'.format(attempt + 1, retries))
 
             self._serial.reset_input_buffer()
             chunk = self._read_bytes(1)
             # enable for 'raw' debugging
-            # self.logger.debug(f'sync loop - got {self._bytes2hexstring(chunk)}')
+            # self.logger.debug('sync loop - got {}'.format(self._bytes2hexstring(chunk)))
             if chunk == self._int2bytes(self._controlset['Not_initiated'], 1, False):
                 self.logger.debug('Got sync. Commencing command send')
                 return True
             time.sleep(.8)
             attempt = attempt + 1
-        self.logger.error(f'Sync not acquired after {attempt} attempts')
+        self.logger.error('Sync not acquired after {} attempts'.format(attempt))
         self._disconnect()
 
         return False
@@ -853,37 +853,37 @@ class Viessmann(SmartPlugin):
                             return None
 
                     self._send_bytes(packet)
-                    self.logger.debug(f'Successfully sent packet: {self._bytes2hexstring(packet)}')
+                    self.logger.debug('Successfully sent packet: {}'.format(self._bytes2hexstring(packet)))
                 except IOError as io:
-                    raise IOError(f'IO Error: {io}')
+                    raise IOError('IO Error: {}'.format(io))
                     return None
                 except Exception as e:
-                    raise Exception(f'Exception while sending: {e}')
+                    raise Exception('Exception while sending: {}'.format(e))
                     return None
 
                 # receive response
                 response_packet = bytearray()
                 try:
-                    self.logger.debug(f'Trying to receive {packetlen_response} bytes of the response')
+                    self.logger.debug('Trying to receive {} bytes of the response'.format(packetlen_response))
                     chunk = self._read_bytes(packetlen_response)
 
                     if self._protocol == 'P300':
-                        self.logger.debug(f'Received {len(chunk)} bytes chunk of response as hexstring {self._bytes2hexstring(chunk)} and as bytes {chunk}')
+                        self.logger.debug('Received {} bytes chunk of response as hexstring {} and as bytes {}'.format(len(chunk), self._bytes2hexstring(chunk), chunk))
                         if len(chunk) != 0:
                             if chunk[:1] == self._int2bytes(self._controlset['Error'], 1):
-                                self.logger.error(f'Interface returned error! response was: {chunk}')
+                                self.logger.error('Interface returned error! response was: {}'.format(chunk))
                             elif len(chunk) == 1 and chunk[:1] == self._int2bytes(self._controlset['Not_initiated'], 1):
                                 self.logger.error('Received invalid chunk, connection not initialized. Forcing re-initialize...')
                                 self._initialized = False
                             elif chunk[:1] != self._int2bytes(self._controlset['Acknowledge'], 1):
-                                self.logger.error(f'Received invalid chunk, not starting with ACK! response was: {chunk}')
+                                self.logger.error('Received invalid chunk, not starting with ACK! response was: {}'.format(chunk))
                             else:
                                 response_packet.extend(chunk)
                                 return response_packet
                         else:
-                            self.logger.error(f'Received 0 bytes chunk - ignoring response_packet! chunk was: {chunk}')
+                            self.logger.error('Received 0 bytes chunk - ignoring response_packet! chunk was: {}'.format(chunk))
                     elif self._protocol == 'KW':
-                        self.logger.debug(f'Received {len(chunk)} bytes chunk of response as hexstring {self._bytes2hexstring(chunk)} and as bytes {chunk}')
+                        self.logger.debug('Received {} bytes chunk of response as hexstring {} and as bytes {}'.format(len(chunk), self._bytes2hexstring(chunk), chunk))
                         if len(chunk) != 0:
                             response_packet.extend(chunk)
                             return response_packet
@@ -892,17 +892,17 @@ class Viessmann(SmartPlugin):
                 except socket.timeout:
                     raise Exception('Error receiving response: time-out')
                 except IOError as io:
-                    raise IOError(f'IO Error: {e}')
+                    raise IOError('IO Error: {}'.format(e))
                 except Exception as e:
-                    raise Exception(f'Error receiving response: {e}')
+                    raise Exception('Error receiving response: {}'.format(e))
             else:
                 raise Exception('Interface not initialized!')
         except IOError as io:
-            self.logger.error(f'send_command_packet failed with IO error: {io}')
+            self.logger.error('send_command_packet failed with IO error: {}'.format(io))
             self.logger.error('Trying to reconnect (disconnecting, connecting')
             self._disconnect()
         except Exception as e:
-            self.logger.error(f'send_command_packet failed with error: {e}')
+            self.logger.error('send_command_packet failed with error: {}'.format(e))
         finally:
             try:
                 self._lock.release()
@@ -929,7 +929,7 @@ class Viessmann(SmartPlugin):
         except serial.SerialTimeoutException:
             return False
 
-        # self.logger.debug(f'send_bytes: Sent {packet}')
+        # self.logger.debug('send_bytes: Sent {}'.format(packet))
         return True
 
     def _read_bytes(self, length):
@@ -952,7 +952,7 @@ class Viessmann(SmartPlugin):
         while time.time() <= starttime + self._timeout:
             readbyte = self._serial.read()
             self._lastbyte = readbyte
-            # self.logger.debug(f'read_bytes: Read {readbyte}')
+            # self.logger.debug('read_bytes: Read {}'.format(readbyte))
             if readbyte != b'':
                 self._lastbytetime = time.time()
             else:
@@ -1003,11 +1003,11 @@ class Viessmann(SmartPlugin):
 
             # Find corresponding item
             item = self._params[commandcode]['item']
-            self.logger.debug(f'Corresponding item {item} for command {commandname}')
+            self.logger.debug('Corresponding item {} for command {}'.format(item, commandname))
 
             # Update item
             if update_item:
-                self.logger.debug(f'Updating item {item} with value {value}')
+                self.logger.debug('Updating item {} with value {}'.format(item, value))
                 if commandunit == 'CT':
                     # Split timer list and put it the child items, which were created by struct.timer in iso time format
                     try:
@@ -1035,14 +1035,14 @@ class Viessmann(SmartPlugin):
                 else:
                     item(value, self.get_shortname())
             else:
-                self.logger.debug(f'Not updating item {item} as not requested')
+                self.logger.debug('Not updating item {} as not requested'.format(item))
         else:
             if (commandcode not in self._timer_cmds) and update_item:
-                self.logger.error(f'Should update item with response to a command not in item config: {commandcode}. This shouldn''t happen..')
+                self.logger.error('Should update item with response to a command not in item config: {}. This should not happen..'.format(commandcode))
 
         # Process response for timers in timer-dict using the commandcode
         if commandcode in self._timer_cmds:
-            self.logger.debug(f'process_response_timer: {commandcode}')
+            self.logger.debug('process_response_timer: {}'.format(commandcode))
 
             # Find timer application
             for timer in self._application_timer:
@@ -1054,7 +1054,7 @@ class Viessmann(SmartPlugin):
                 self._viess_timer_dict[timer_app] = {}
 
             self._viess_timer_dict[timer_app][commandname] = value
-            self.logger.debug(f'Viessmann timer dict: {self._viess_timer_dict}')
+            self.logger.debug('Viessmann timer dict: {}'.format(self._viess_timer_dict))
 
 #
 # convert data types
@@ -1081,7 +1081,7 @@ class Viessmann(SmartPlugin):
             else:
                 max_allowed_value = None
         except KeyError:
-            self.logger.error(f'Error in command configuration {commandconf}, aborting')
+            self.logger.error('Error in command configuration {}, aborting'.format(commandconf))
             return None
 
         if commandunit == 'BA':
@@ -1093,37 +1093,37 @@ class Viessmann(SmartPlugin):
                 commandunit = 'IUNON'
             except KeyError:
                 # value doesn't exist in operatingmodes. don't know what to do
-                self.logger.error(f'Value {value} not defined in operating modes for device {self._heating_type}')
+                self.logger.error('Value {} not defined in operating modes for device {}'.format(value, self._heating_type))
                 return None
 
         try:
             unitconf = self._unitset[commandunit]
         except KeyError:
-            self.logger.error(f'Error: unit {commandunit} not found in unit set {self._unitset}')
+            self.logger.error('Error: unit {} not found in unit set {}'.format(commandunit, self._unitset))
             return None
 
         try:
             commandvalueresult = unitconf['type']
             commandtransform = unitconf['read_value_transform']
         except KeyError:
-            self.logger.error(f'Error in unit configuration {unitconf} for unit {commandunit}, aborting')
+            self.logger.error('Error in unit configuration {} for unit {}, aborting'.format(unitconf, commandunit))
             return None
 
-        self.logger.debug(f'Unit defined to {commandunit} with config{unitconf}')
+        self.logger.debug('Unit defined to {} with config{}'.format(commandunit, unitconf))
 
         # check if writing is allowed for this address
         if not set_allowed:
-            self.logger.error(f'Command {self._commandname_by_commandcode(commandconf["addr"])} is not configured for writing')
+            self.logger.error('Command {} is not configured for writing'.format(self._commandname_by_commandcode(commandconf["addr"])))
             return None
 
         # check if value is empty
         if value is None or value == '':
-            self.logger.error(f'Command value for command {self._commandname_by_commandcode(commandconf["addr"])} is empty, not possible to send (check item, command and unit configuration')
+            self.logger.error('Command value for command {} is empty, not possible to send (check item, command and unit configuration'.format(self._commandname_by_commandcode(commandconf["addr"])))
             return None
 
         # check if value to be written is in allowed range
         if (min_allowed_value is not None and min_allowed_value > value) or (max_allowed_value is not None and max_allowed_value < value):
-            self.logger.error(f'Invalid range - value {value} not in range [{min_allowed_value}, {max_allowed_value}]')
+            self.logger.error('Invalid range - value {} not in range [{}, {}]'.format(value, min_allowed_value, max_allowed_value))
             return None
 
         try:
@@ -1134,9 +1134,9 @@ class Viessmann(SmartPlugin):
                     # Viessmann erwartet 2 digits für Wochentag, daher wird hier noch eine 0 eingefügt
                     datestring = datestring[:8] + '0' + datestring[8:]
                     valuebytes = bytes.fromhex(datestring)
-                    self.logger.debug(f'Created value bytes for type {commandvalueresult} as bytes: {valuebytes}')
+                    self.logger.debug('Created value bytes for type {} as bytes: {}'.format(commandvalueresult, valuebytes))
                 except Exception as e:
-                    self.logger.error(f'Incorrect data format, YYYY-MM-DD expected; Error: {e}')
+                    self.logger.error('Incorrect data format, YYYY-MM-DD expected; Error: {}'.format(e))
                     return None
             elif commandvalueresult == 'timer':
                 try:
@@ -1144,27 +1144,27 @@ class Viessmann(SmartPlugin):
                     for switching_time in value:
                         an = self._encode_timer(switching_time['An'])
                         aus = self._encode_timer(switching_time['Aus'])
-                        times += f'{an:02x}{aus:02x}'
+                        times += '{:02x}{:02x}'.format(an, aus)
                     valuebytes = bytes.fromhex(times)
-                    self.logger.debug(f'Created value bytes for type {commandvalueresult} as hexstring: {self._bytes2hexstring(valuebytes)} and as bytes: {valuebytes}')
+                    self.logger.debug('Created value bytes for type {} as hexstring: {} and as bytes: {}'.format(commandvalueresult, self._bytes2hexstring(valuebytes), valuebytes))
                 except Exception as e:
-                    self.logger.error(f'Incorrect data format, (An: hh:mm Aus: hh:mm) expected; Error: {e}')
+                    self.logger.error('Incorrect data format, (An: hh:mm Aus: hh:mm) expected; Error: {}'.format(e))
                     return None
             elif commandvalueresult == 'integer' or commandvalueresult == 'list':
                 if commandtransform == 'int':
                     value = self._value_transform_write(value, commandtransform)
-                    self.logger.debug(f'Transformed value using method {commandtransform} to {value}')
+                    self.logger.debug('Transformed value using method {} to {}'.format(commandtransform, value))
                 elif commandtransform == 'bool':
                     value = bool(value)
                 else:
                     value = int(value)
                 valuebytes = self._int2bytes(value, commandvaluebytes)
-                self.logger.debug(f'Created value bytes for type {commandvalueresult} as hexstring: {self._bytes2hexstring(valuebytes)} and as bytes: {valuebytes}')
+                self.logger.debug('Created value bytes for type {} as hexstring: {} and as bytes: {}'.format(commandvalueresult, self._bytes2hexstring(valuebytes), valuebytes))
             else:
-                self.logger.error(f'Type {commandvalueresult} not definied for creating write command bytes')
+                self.logger.error('Type {} not definied for creating write command bytes'.format(commandvalueresult))
                 return None
         except Exception as e:
-            self.logger.debug(f'_build_valuebytes_from_value failed with unexpected error: {e}')
+            self.logger.debug('_build_valuebytes_from_value failed with unexpected error: {}'.format(e))
             return None
 
         return valuebytes
@@ -1191,7 +1191,7 @@ class Viessmann(SmartPlugin):
         # KW: startbyte (1 byte), read/write (1 byte), addr (2 bytes), length of value (1 byte), value bytes (1-4 bytes)
 
         write = value is not None
-        self.logger.debug(f'Build {"write" if write else "read"} packet for command {commandname}')
+        self.logger.debug('Build {} packet for command {}'.format("write" if write else "read", commandname))
 
         # Get command config
         commandconf = self._commandset[commandname]
@@ -1206,7 +1206,7 @@ class Viessmann(SmartPlugin):
 
             # Calculate length of payload (only needed for P300)
             payloadlength = int(self._controlset['Command_bytes_write']) + int(commandvaluebytes)
-            self.logger.debug(f'Payload length is: {payloadlength} bytes')
+            self.logger.debug('Payload length is: {} bytes'.format(payloadlength))
 
         # Build packet for read commands
         #
@@ -1245,9 +1245,9 @@ class Viessmann(SmartPlugin):
             responselen = 1 if write else int(commandvaluebytes)
 
         if write:
-            self.logger.debug(f'Created command {commandname} to be sent as hexstring: {self._bytes2hexstring(packet)} and as bytes: {packet} with value {value} (transformed to value byte {self._bytes2hexstring(valuebytes)})')
+            self.logger.debug('Created command {} to be sent as hexstring: {} and as bytes: {} with value {} (transformed to value byte {})'.format(commandname, self._bytes2hexstring(packet), packet, value, self._bytes2hexstring(valuebytes)))
         else:
-            self.logger.debug(f'Created command {commandname} to be sent as hexstring: {self._bytes2hexstring(packet)} and as bytes: {packet}')
+            self.logger.debug('Created command {} to be sent as hexstring: {} and as bytes: {}'.format(commandname, self._bytes2hexstring(packet), packet))
 
         return (packet, responselen)
 
@@ -1272,7 +1272,7 @@ class Viessmann(SmartPlugin):
             checksum = self._calc_checksum(response[1:len(response) - 1])  # first, cut first byte (ACK) and last byte (checksum) and then calculate checksum
             received_checksum = response[len(response) - 1]
             if received_checksum != checksum:
-                self.logger.error(f'Calculated checksum {checksum} does not match received checksum of {received_checksum}! Ignoring reponse')
+                self.logger.error('Calculated checksum {} does not match received checksum of {}! Ignoring reponse'.format(checksum, received_checksum))
                 return None
 
             # Extract command/address, valuebytes and valuebytecount out of response
@@ -1311,8 +1311,8 @@ class Viessmann(SmartPlugin):
                     # error if status reply is not 0x00
                     responsetypecode = 3
 
-        self.logger.debug(f'Response decoded to: commandcode: {commandcode}, responsedatacode: {responsedatacode}, valuebytecount: {valuebytecount}, responsetypecode: {responsetypecode}')
-        self.logger.debug(f'Rawdatabytes formatted: {self._bytes2hexstring(rawdatabytes)} and unformatted: {rawdatabytes}')
+        self.logger.debug('Response decoded to: commandcode: {}, responsedatacode: {}, valuebytecount: {}, responsetypecode: {}'.format(commandcode, responsedatacode, valuebytecount, responsetypecode))
+        self.logger.debug('Rawdatabytes formatted: {} and unformatted: {}'.format(self._bytes2hexstring(rawdatabytes), rawdatabytes))
 
         # Process response for items if read response and not error
         if responsedatacode == 1 and responsetypecode != 3:
@@ -1320,7 +1320,7 @@ class Viessmann(SmartPlugin):
             # parse response if command config is available
             commandname = self._commandname_by_commandcode(commandcode)
             if commandname is None:
-                self.logger.error(f'Received response for unknown address point {commandcode}')
+                self.logger.error('Received response for unknown address point {}'.format(commandcode))
                 return None
 
             # Get command and respective unit config
@@ -1329,7 +1329,7 @@ class Viessmann(SmartPlugin):
             commandunit = commandconf['unit']
             unitconf = self._unitset.get(commandunit)
             if not unitconf:
-                self.logger.error(f'Unit configuration not found for unit {commandunit} in protocol {self._protocol}. This is a configuration error in commands.py, please fix')
+                self.logger.error('Unit configuration not found for unit {} in protocol {}. This is a configuration error in commands.py, please fix'.format(commandunit, self._protocol))
                 return None
             commandsigned = unitconf['signed']
             valuetransform = unitconf['read_value_transform']
@@ -1342,50 +1342,50 @@ class Viessmann(SmartPlugin):
                 timer = [{'An': on_time, 'Aus': off_time}
                          for on_time, off_time in zip(timer, timer)]
                 value = timer
-                self.logger.debug(f'Matched command {commandname} and read transformed timer {value} and byte length {commandvaluebytes}')
+                self.logger.debug('Matched command {} and read transformed timer {} and byte length {}'.format(commandname, value, commandvaluebytes))
             elif commandunit == 'TI':
                 rawdatastring = rawdatabytes.hex()
                 rawdata = bytearray()
                 rawdata.extend(map(ord, rawdatastring))
                 # decode datetime
                 value = datetime.strptime(rawdata.decode(), '%Y%m%d%W%H%M%S').isoformat()
-                self.logger.debug(f'Matched command {commandname} and read transformed datetime {value} and byte length {commandvaluebytes}')
+                self.logger.debug('Matched command {} and read transformed datetime {} and byte length {}'.format(commandname, value, commandvaluebytes))
             elif commandunit == 'DA':
                 rawdatastring = rawdatabytes.hex()
                 rawdata = bytearray()
                 rawdata.extend(map(ord, rawdatastring))
                 # decode date
                 value = datetime.strptime(rawdata.decode(), '%Y%m%d%W%H%M%S').date().isoformat()
-                self.logger.debug(f'Matched command {commandname} and read transformed datetime {value} and byte length {commandvaluebytes}')
+                self.logger.debug('Matched command {} and read transformed datetime {} and byte length {}'.format(commandname, value, commandvaluebytes))
             elif commandunit == 'ES':
                 # erstes Byte = Fehlercode; folgenden 8 Byte = Systemzeit
                 errorcode = (rawdatabytes[:1]).hex()
                 # errorquerytime = (rawdatabytes[1:8]).hex()
                 value = self._error_decode(errorcode)
-                self.logger.debug(f'Matched command {commandname} and read transformed errorcode {value} (raw value was {errorcode}) and byte length {commandvaluebytes}')
+                self.logger.debug('Matched command {} and read transformed errorcode {} (raw value was {}) and byte length {}'.format(commandname, value, errorcode, commandvaluebytes))
             elif commandunit == 'SC':
                 # erstes Byte = Anlagenschema
                 systemschemescode = (rawdatabytes[:1]).hex()
                 value = self._systemscheme_decode(systemschemescode)
-                self.logger.debug(f'Matched command {commandname} and read transformed system scheme {value} (raw value was {systemschemescode}) and byte length {commandvaluebytes}')
+                self.logger.debug('Matched command {} and read transformed system scheme {} (raw value was {}) and byte length {}'.format(commandname, value, systemschemescode, commandvaluebytes))
             elif commandunit == 'BA':
                 operatingmodecode = (rawdatabytes[:1]).hex()
                 value = self._operatingmode_decode(operatingmodecode)
-                self.logger.debug(f'Matched command {commandname} and read transformed operating mode {value} (raw value was {operatingmodecode}) and byte length {commandvaluebytes}')
+                self.logger.debug('Matched command {} and read transformed operating mode {} (raw value was {}) and byte length {}'.format(commandname, value, operatingmodecode, commandvaluebytes))
             elif commandunit == 'DT':
                 # device type has 8 bytes, but first 4 bytes are device type indicator
                 devicetypebytes = rawdatabytes[:2].hex()
                 value = self._devicetype_decode(devicetypebytes).upper()
-                self.logger.debug(f'Matched command {commandname} and read transformed device type {value} (raw value was {devicetypebytes}) and byte length {commandvaluebytes}')
+                self.logger.debug('Matched command {} and read transformed device type {} (raw value was {}) and byte length {}'.format(commandname, value, devicetypebytes, commandvaluebytes))
             elif commandunit == 'SN':
                 # serial number has 7 bytes,
                 serialnummerbytes = rawdatabytes[:7]
                 value = self._serialnumber_decode(serialnummerbytes)
-                self.logger.debug(f'Matched command {commandname} and read transformed device type {value} (raw value was {devicetypebytes}) and byte length {commandvaluebytes}')
+                self.logger.debug('Matched command {} and read transformed device type {} (raw value was {}) and byte length {}'.format(commandname, value, devicetypebytes, commandvaluebytes))
             else:
                 rawvalue = self._bytes2int(rawdatabytes, commandsigned)
                 value = self._value_transform_read(rawvalue, valuetransform)
-                self.logger.debug(f'Matched command {commandname} and read transformed value {value} (integer raw value was {rawvalue}) and byte length {commandvaluebytes}')
+                self.logger.debug('Matched command {} and read transformed value {} (integer raw value was {}) and byte length {}'.format(commandname, value, rawvalue, commandvaluebytes))
 
             # assign to dict for use by other functions
             self._last_values[commandcode] = value
@@ -1394,10 +1394,10 @@ class Viessmann(SmartPlugin):
 
         # Handling of write command response if not error
         elif responsedatacode == 2 and responsetypecode != 3:
-            self.logger.debug(f'Write request of adress {commandcode} successfull writing {valuebytecount} bytes')
+            self.logger.debug('Write request of adress {} successfull writing {} bytes'.format(commandcode, valuebytecount))
             return None
         else:
-            self.logger.error(f'Write request of adress {commandcode} NOT successfull writing {valuebytecount} bytes')
+            self.logger.error('Write request of adress {} NOT successfull writing {} bytes'.format(commandcode, valuebytecount))
             return None
 
     def _viess_dict_to_uzsu_dict(self):
@@ -1440,7 +1440,7 @@ class Viessmann(SmartPlugin):
                                 dict_timer[application][sw_time][value] = []
                             dict_timer[application][sw_time][value].append(weekday)
 
-        self.logger.debug(f'Viessmann timer dict for UZSU: {dict_timer}')
+        self.logger.debug('Viessmann timer dict for UZSU: {}'.format(dict_timer))
 
         # find items, read UZSU-dict, convert to list of switching times, update item
         for application in dict_timer:
@@ -1486,7 +1486,7 @@ class Viessmann(SmartPlugin):
                 return
 
             commandnames.update([self._commandname_by_commandcode(code) for code in self._application_timer[timer_app]['commandcodes']])
-            self.logger.debug(f'Commandnames: {commandnames}')
+            self.logger.debug('Commandnames: {}'.format(commandnames))
 
             # find switching times and create lists for on and off operations
             for sw_time in uzsu_dict['list']:
@@ -1505,14 +1505,14 @@ class Viessmann(SmartPlugin):
             # sort daily lists
             for day in an:
                 an[day].sort()
-            self.logger.debug(f'An: {an}')
+            self.logger.debug('An: {}'.format(an))
             for day in aus:
                 aus[day].sort()
-            self.logger.debug(f'Aus: {aus}')
+            self.logger.debug('Aus: {}'.format(aus))
 
             # create timer dict in Viessmann format for all weekdays
             for commandname in commandnames:
-                self.logger.debug(f'Commandname in process: {commandname}')
+                self.logger.debug('Commandname in process: {}'.format(commandname))
                 # create empty dict
                 timer_dict[commandname] = [{'An': '00:00', 'Aus': '00:00'}, {'An': '00:00', 'Aus': '00:00'}, {'An': '00:00', 'Aus': '00:00'}, {'An': '00:00', 'Aus': '00:00'}]
                 # get current day
@@ -1526,12 +1526,12 @@ class Viessmann(SmartPlugin):
                     timer_dict[commandname][idx]['An'] = val
                 for idx, val in enumerate(aus[wday]):
                     timer_dict[commandname][idx]['Aus'] = val
-            self.logger.debug(f'Timer-dict for update of items: {timer_dict}')
+            self.logger.debug('Timer-dict for update of items: {}'.format(timer_dict))
 
             # write all timer dicts to device
             for commandname in timer_dict:
                 value = timer_dict[commandname]
-                self.logger.debug(f'Got item value to be written: {value} on command name {commandname}')
+                self.logger.debug('Got item value to be written: {} on command name {}'.format(value, commandname))
                 self._send_command(commandname, value)
 
     def _calc_checksum(self, packet):
@@ -1593,7 +1593,7 @@ class Viessmann(SmartPlugin):
         :return: Converted hex string
         :rtype: str
         '''
-        return ''.join(f'{c:02x}' for c in bytesvalue)
+        return ''.join('{02x}'.format(c) for c in bytesvalue)
 
     def _decode_rawvalue(self, rawdatabytes, commandsigned):
         '''
@@ -1630,7 +1630,7 @@ class Viessmann(SmartPlugin):
                 # not a valid time
                 yield '00:00'
             else:
-                yield f'{hours:02d}:{(minutes * 10):02d}'
+                yield '{:02d}:{:02d}'.format(hours, minutes * 10)
             rawdatabytes = rawdatabytes[2:]
         return None
 
@@ -1773,7 +1773,7 @@ class Viessmann(SmartPlugin):
             self.logger.warning('Not initializing the web interface')
             return False
 
-        if 'SmartPluginWebIf' not in list(sys.modules['lib.model.smartplugin'].__dict__):
+        if 'SmartPluginWebI' not in list(sys.modules['lib.model.smartplugin'].__dict__):
             self.logger.warning('Web interface needs SmartHomeNG v1.5 or later. Not initializing the web interface')
             return False
 
@@ -1879,7 +1879,7 @@ class WebInterface(SmartPluginWebIf):
             # try:
             #     return json.dumps(data)
             # except Exception as e:
-            #     self.logger.error(f'get_data_html exception: {e}')
+            #     self.logger.error('get_data_html exception: {}'.format(e))
             pass
 
         return {}
