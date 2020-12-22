@@ -23,7 +23,6 @@ import logging
 import sys
 import time
 import re
-import json
 import serial
 import socket
 import threading
