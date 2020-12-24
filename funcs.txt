@@ -1,0 +1,48 @@
+    def __init__(self, sh, *args, **kwargs):
+    def run(self):
+    def stop(self):
+    def parse_item(self, item):
+    def parse_logic(self, logic):
+    def update_item(self, item, caller=None, source=None, dest=None):
+    def send_cyclic_cmds(self):
+    def update_all_read_items(self):
+    def read_addr(self, addr):
+    def read_temp_addr(self, addr, length, unit):
+    def _connect(self):
+    def _disconnect(self):
+    def _init_communication(self):
+    def _create_cyclic_scheduler(self):
+    def _read_initial_values(self):
+    def _read_timers(self):
+    def _send_command(self, commandname, value=None):
+    def _KW_send_multiple_read_commands(self, commandcodes):
+    def _KW_get_sync(self):
+    def _send_command_packet(self, packet, packetlen_response):
+    def _send_bytes(self, packet):
+    def _read_bytes(self, length):
+    def _process_response(self, response, commandname='', read_response=True, update_item=True):
+    def _build_valuebytes_from_value(self, value, commandconf):
+    def _build_command_packet(self, commandname, value=None, KWFollowUp=False):
+    def _parse_response(self, response, commandname='', read_response=True):
+    def _viess_dict_to_uzsu_dict(self):
+    def _uzsu_dict_to_viess_timer(self, timer_app, uzsu_dict):
+    def _calc_checksum(self, packet):
+    def _int2bytes(self, value, length, signed=False):
+    def _bytes2int(self, rawbytes, signed):
+    def _bytes2hexstring(self, bytesvalue):
+    def _decode_rawvalue(self, rawdatabytes, commandsigned):
+    def _decode_timer(self, rawdatabytes):
+    def _encode_timer(self, switching_time):
+    def _value_transform_read(self, value, transform):
+    def _value_transform_write(self, value, transform):
+    def _error_decode(self, value):
+    def _systemscheme_decode(self, value):
+    def _operatingmode_decode(self, value):
+    def _devicetype_decode(self, value):
+    def _serialnumber_decode(self, serialnumberbytes):
+    def _commandname_by_commandcode(self, commandcode):
+    def _isfloat(self, value):
+    def init_webinterface(self):
+    def __init__(self, webif_dir, plugin, cmdset):
+    def index(self, reload=None):
+    def submit(self, button=None):

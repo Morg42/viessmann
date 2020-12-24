@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# vim: set encoding=utf-8 tabstop=4 softtabstop=4 shiftwidth=4 expandtab
 #########################################################################
 # Copyright 2020 Michael Wenzel
 # Copyright 2020 Sebastian Helms
@@ -1033,8 +1034,9 @@ class Viessmann(SmartPlugin):
                                 child(value[3]['Aus'], self.get_shortname())
                     except KeyError:
                         self.logger.debug('No child items for timer found (use timer.structs) or value no valid')
-                else:
-                    item(value, self.get_shortname())
+
+                # save value to item
+                item(value, self.get_shortname())
             else:
                 self.logger.debug(f'Not updating item {item} as not requested')
         else:

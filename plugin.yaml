@@ -15,7 +15,6 @@ plugin:
     multi_instance: false           # plugin supports multi instance
     restartable: unknown
     classname: Viessmann            # class containing the plugin
-    documentation: http://smarthomeng.de/user/plugins/viessmann/user_doc.html
     support: https://knx-user-forum.de/forum/supportforen/smarthome-py/1455991-viessmann-plugin-neuentwicklung-python-hilfe/
 
 parameters:
@@ -94,6 +93,12 @@ item_attributes:
         description:
             de: 'Konfiguriert eine Verzögerung in Sekunden, bis ein Trigger ausgeführt werden soll, nachdem ein Wert gesetzt wurde.'
             en: 'Configures delay in seconds to run trigger commands after item update.'
+
+    viess_update:
+        type: bool
+        description:
+            de: 'Liest alle konfigurierten Items neu, wenn es auf True gesetzt wird'
+            en: 'Triggers reading of all configured items if set to True'
 
 item_structs:
     timer:

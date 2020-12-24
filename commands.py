@@ -1,4 +1,5 @@
 # !/usr/bin/env python
+# vim: set encoding=utf-8 tabstop=4 softtabstop=4 shiftwidth=4 expandtab
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 # Copyright 2020 Michael Wenzel
 # Copyright 2020 Sebastian Helms

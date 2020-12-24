@@ -1,8 +1,8 @@
+<!-- vim: set encoding=utf-8 tabstop=4 softtabstop=4 shiftwidth=4 expandtab -->
 {% extends "base_plugin.html" %}
-{% set tabcount = 3 %}
+{% set tabcount = 2 %}
 {% set tab1title = _('Viessmann Items') %}
-{% set tab2title = _('Aktive Datenpunkte') %}
-{% set tab3title = _('Alle Datenpunkte') %}
+{% set tab2title = _('Alle Datenpunkte') %}
 {% set language = p.get_sh().get_defaultlanguage() %}
 {% if last_read_cmd != "" %}
 {% set start_tab = 3 %}
@@ -28,9 +28,22 @@
 
 <script type="text/javascript">
 
-	$(function() {
-	         
+	$(document).ready( function () {
+	    $('#itemtable').DataTable( {
+	        "paging": false,
+	        fixedHeader: true
+	        } );
+	    $('#activetable').DataTable( {
+	        "paging": false,
+	        fixedHeader: true
+	        } );
+	    $('#addrtable').DataTable( {
+	    	"paging": false,
+	    	fixedHeader: true
+	    	} );
+
 	    // When a button in the address table (tab3) is pressed...
+		// (formally any submit button inside the "button_pressed"-Form)
 	    $("#button_pressed").submit(function(e) {
 	 
 			e.preventDefault();
@@ -97,10 +110,10 @@
 	    });
 
 	         
-	    // When the testform is submitted...
-	    $("#form_clear").submit(function(b) {
+	    // When the button 'clear' is clicked...
+	    $("#clear").click(function(e) {
 	 
-			b.preventDefault();
+			e.preventDefault();
 
 	        // post the form values via AJAX...
 	        $.post('submit', {clear: "true"}, function(data) {
@@ -118,23 +131,9 @@
 	        return false ;
 	    });
 	});
-
-	$(document).ready( function () {
-	    $('#itemtable').DataTable( {
-	        "paging": false,
-	        fixedHeader: true
-	        } );
-	    $('#activetable').DataTable( {
-	        "paging": false,
-	        fixedHeader: true
-	        } );
-	    $('#addrtable').DataTable( {
-	    	"paging": false,
-	    	fixedHeader: true
-	    	} );
-	} );
 </script>
 {% endblock pluginscripts %}
+
 
 {% block headtable %}
 <table class="table table-striped table-hover">
@@ -174,9 +173,7 @@
 {% endblock headtable %}
 
 {% block buttons %}
-    <form id="form_clear" action="" method="POST">
-    	<button id="clear" class="btn btn-shng btn-sm" type="submit">Gelesene Werte löschen</button>
-    </form>
+    	<button id="clear" class="btn btn-shng btn-sm" type="button">Gelesene Werte löschen</button>
 {% endblock %}
 
 {% block bodytab1 %}
@@ -213,37 +210,6 @@
 {% endblock bodytab1 %}
 
 {% block bodytab2 %}
-<div class="table-responsive" style="margin-left: 2px; margin-right: 2px;" class="row">
-	<div class="col-sm-12">
-		{% if p._params|length %}
-		    <table id="activetable" class="table table-striped table-hover">
-			    <thead>
-				    <tr>
-				    	<th>{{ _('Datenpunkt') }}</th>
-				    	<th>{{ _('Befehlsname') }}</th>
-				    	<th>{{ _('Item') }}</th>
-				    	<th>{{ _('Wert') }}</th>
-				    	<th>{{ _('Letzte Aktualisierung') }}</th>
-				   	</tr>
-				</thead>
-				<tbody>
-					{% for commandcode in p._params %}
-				        <tr>
-				            <td>{{ commandcode }}</td>
-				            <td>{{ p._params[commandcode]['commandname'] }}</td>
-				            <td>{{ p._params[commandcode]['item'].path() }}</td>
-				            <td>{{ p._params[commandcode]['item']() }}</td>
-				            <td>{{ p._params[commandcode]['item'].last_update() }}</td>
-				        </tr>
-				    {% endfor %}
-				</tbody>
-		    </table>
-		{% endif %}
-	</div>
-</div>
-{% endblock bodytab2 %}
-
-{% block bodytab3 %}
 <div class="table-responsive" style="margin-left: 2px; margin-right: 2px;" class="row">
 	<div class="col-sm-12">
 		{% if cmds|length %}
@@ -295,4 +261,4 @@
 		{% endif %}
 	</div>
 </div>
-{% endblock bodytab3 %}
+{% endblock bodytab2 %}
