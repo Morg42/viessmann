@@ -2064,7 +2064,7 @@ if __name__ == '__main__':
         else:
 
             # anything else should be the devices answer, try to decode and quit
-            print(f'Device ID is {res}, device type is {commands.devicetypes.get(res, 'unknown')} using protocol {proto}')
+            print(f'Device ID is {res}, device type is {commands.devicetypes.get(res, "unknown")} using protocol {proto}')
             # break
 
     print('Done.')
