@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 # vim: set encoding=utf-8 tabstop=4 softtabstop=4 shiftwidth=4 expandtab
+
 #########################################################################
 # Copyright 2020 Michael Wenzel
 # Copyright 2020 Sebastian Helms
@@ -510,8 +511,6 @@ class Viessmann(SmartPlugin):
         '''
         self._connected = False
         self._initialized = False
-        if self.scheduler_get('cyclic'):
-            self.scheduler_remove('cyclic')
         try:
             self._serial.close()
         except IOError:
@@ -1703,6 +1702,7 @@ class Viessmann(SmartPlugin):
         '''
         Decode error value from device if defined, else return error as string
         '''
+        value = str(value).upper()
         if value in self._errorset:
             errorstring = str(self._errorset[value])
         else:
