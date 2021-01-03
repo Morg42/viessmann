@@ -65,7 +65,7 @@ class Viessmann(SmartPlugin):
     '''
     ALLOW_MULTIINSTANCE = False
 
-    PLUGIN_VERSION = '1.2.0'
+    PLUGIN_VERSION = '1.2.1'
 
 #
 # public methods
@@ -122,45 +122,10 @@ class Viessmann(SmartPlugin):
         if '.'.join(VERSION.split('.', 2)[:2]) <= '1.5':
             self.logger = logging.getLogger(__name__)
 
-        # Load protocol dependent sets
-        if self._protocol in commands.controlset and self._protocol in commands.errorset and self._protocol in commands.unitset and self._protocol in commands.returnstatus and self._protocol in commands.setreturnstatus:
-            self._controlset = commands.controlset[self._protocol]
-            self.logger.debug(f'Loaded controlset for protocol {self._controlset}')
-            self._errorset = commands.errorset[self._protocol]
-            self.logger.debug(f'Loaded errors for protocol {self._errorset}')
-            self._unitset = commands.unitset[self._protocol]
-            self.logger.debug(f'Loaded units for protocol {self._unitset}')
-            self._devicetypes = commands.devicetypes
-            self.logger.debug(f'Loaded device types for protocol {self._devicetypes}')
-            self._returnstatus = commands.returnstatus[self._protocol]
-            self.logger.debug(f'Loaded return status for protocol {self._returnstatus}')
-            self._setreturnstatus = commands.setreturnstatus[self._protocol]
-            self.logger.debug(f'Loaded set return status for protocol {self._setreturnstatus}')
-        else:
-            self.logger.error(f'Sets for protocol {self._protocol} could not be found or incomplete!')
+        self._config_loaded = False
+
+        if not self._load_configuration():
             return None
-
-        # Load device dependent sets
-        if self._heating_type in commands.commandset and self._heating_type in commands.operatingmodes and self._heating_type in commands.systemschemes:
-            self._commandset = commands.commandset[self._heating_type]
-            self.logger.debug(f'Loaded commands for heating type {self._commandset}')
-            self._operatingmodes = commands.operatingmodes[self._heating_type]
-            self.logger.debug(f'Loaded operating modes for heating type {self._operatingmodes}')
-            self._systemschemes = commands.systemschemes[self._heating_type]
-            self.logger.debug(f'Loaded system schemes for heating type {self._systemschemes}')
-        else:
-            sets = []
-            if self._heating_type not in commands.commandset:
-                sets += 'command'
-            if self._heating_type not in commands.operatingmodes:
-                sets += 'operating modes'
-            if self._heating_type not in commands.systemschemes:
-                sets += 'system schemes'
-
-            self.logger.error(f'Sets {", ".join(sets)} for heating type {self._heating_type} could not be found!')
-            return None
-
-        self.logger.info(f'Loaded configuration for heating type {self._heating_type} with protocol {self._protocol}')
 
         # Init web interface
         self.init_webinterface()
@@ -169,6 +134,9 @@ class Viessmann(SmartPlugin):
         '''
         Run method for the plugin
         '''
+        if not self._config_loaded:
+            if not self._load_configuration():
+                return
         self.alive = True
         self._connect()
         self._read_initial_values()
@@ -182,6 +150,8 @@ class Viessmann(SmartPlugin):
         if self.scheduler_get('cyclic'):
             self.scheduler_remove('cyclic')
         self._disconnect()
+        # force reload of configuration on restart
+        self._config_loaded = False
 
     def parse_item(self, item):
         '''
@@ -488,6 +458,53 @@ class Viessmann(SmartPlugin):
 #
 # initialization methods
 #
+
+    def _load_configuration(self):
+        '''
+        Load configuration sets from commands.py
+        '''
+
+        # Load protocol dependent sets
+        if self._protocol in commands.controlset and self._protocol in commands.errorset and self._protocol in commands.unitset and self._protocol in commands.returnstatus and self._protocol in commands.setreturnstatus:
+            self._controlset = commands.controlset[self._protocol]
+            self.logger.debug(f'Loaded controlset for protocol {self._controlset}')
+            self._errorset = commands.errorset[self._protocol]
+            self.logger.debug(f'Loaded errors for protocol {self._errorset}')
+            self._unitset = commands.unitset[self._protocol]
+            self.logger.debug(f'Loaded units for protocol {self._unitset}')
+            self._devicetypes = commands.devicetypes
+            self.logger.debug(f'Loaded device types for protocol {self._devicetypes}')
+            self._returnstatus = commands.returnstatus[self._protocol]
+            self.logger.debug(f'Loaded return status for protocol {self._returnstatus}')
+            self._setreturnstatus = commands.setreturnstatus[self._protocol]
+            self.logger.debug(f'Loaded set return status for protocol {self._setreturnstatus}')
+        else:
+            self.logger.error(f'Sets for protocol {self._protocol} could not be found or incomplete!')
+            return False
+
+        # Load device dependent sets
+        if self._heating_type in commands.commandset and self._heating_type in commands.operatingmodes and self._heating_type in commands.systemschemes:
+            self._commandset = commands.commandset[self._heating_type]
+            self.logger.debug(f'Loaded commands for heating type {self._commandset}')
+            self._operatingmodes = commands.operatingmodes[self._heating_type]
+            self.logger.debug(f'Loaded operating modes for heating type {self._operatingmodes}')
+            self._systemschemes = commands.systemschemes[self._heating_type]
+            self.logger.debug(f'Loaded system schemes for heating type {self._systemschemes}')
+        else:
+            sets = []
+            if self._heating_type not in commands.commandset:
+                sets += 'command'
+            if self._heating_type not in commands.operatingmodes:
+                sets += 'operating modes'
+            if self._heating_type not in commands.systemschemes:
+                sets += 'system schemes'
+
+            self.logger.error(f'Sets {", ".join(sets)} for heating type {self._heating_type} could not be found!')
+            return False
+
+        self.logger.info(f'Loaded configuration for heating type {self._heating_type} with protocol {self._protocol}')
+        self._config_loaded = True
+        return True
 
     def _connect(self):
         '''
