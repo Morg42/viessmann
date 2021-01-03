@@ -105,14 +105,12 @@ item_attributes:
         description:
             de: 'Liest alle Timer zu einer Anwendung (Heizkreis, Warmwasser) und stellt diese für die Nutzung mit UZSU zur Verfügung'
             en: 'Provides an UZSU-compatible dict with all timers for one application (heating circuit, heated water)'
+
     viess_ba_list:
         type: bool
         description:
             de: 'Gibt nach der Initialisierung eine Liste aller für die konfigurierte Heizung gültigen Betriebsarten zurück'
             en: 'Returns a list of valid operating modes for the configured device type after initialization'
-
-    viess_timer:
-        type: str
 
 item_structs:
     timer:
