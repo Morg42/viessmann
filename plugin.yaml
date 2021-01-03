@@ -106,6 +106,9 @@ item_attributes:
             de: 'Gibt nach der Initialisierung eine Liste aller für die konfigurierte Heizung gültigen Betriebsarten zurück'
             en: 'Returns a list of valid operating modes for the configured device type after initialization'
 
+    viess_timer:
+        type: str
+
 item_structs:
     timer:
         name: Schaltzeiten in Einzelzeiten fuer An und Aus
