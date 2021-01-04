@@ -101,10 +101,10 @@ item_attributes:
             en: 'Triggers reading of all configured items if set to True'
 
     viess_timer:
-        type: dict
+        type: str
         description:
-            de: 'Liest alle Timer zu einer Anwendung (Heizkreis, Warmwasser) und stellt diese für die Nutzung mit UZSU zur Verfügung'
-            en: 'Provides an UZSU-compatible dict with all timers for one application (heating circuit, heated water)'
+            de: 'Liest alle Timer zur übergebenen Anwendung (z.B. Heizkreis_A1M1) und stellt diese für die Nutzung mit UZSU zur Verfügung'
+            en: 'Provides an UZSU-compatible dict with all timers for the given application (e.g. Heizkreis_A1M1)'
 
     viess_ba_list:
         type: bool
