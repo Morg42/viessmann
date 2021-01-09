@@ -27,7 +27,6 @@ import time
 import re
 import json
 import serial
-import socket
 import threading
 from datetime import datetime
 import dateutil.parser
@@ -51,7 +50,7 @@ else:
     from . import commands
 
     from lib.item import Items
-    from lib.model.smartplugin import *
+    from lib.model.smartplugin import SmartPlugin, SmartPluginWebIf, Modules
 
     from bin.smarthome import VERSION
 
@@ -65,7 +64,7 @@ class Viessmann(SmartPlugin):
     '''
     ALLOW_MULTIINSTANCE = False
 
-    PLUGIN_VERSION = '1.2.1'
+    PLUGIN_VERSION = '1.2.2'
 
 #
 # public methods
@@ -95,7 +94,7 @@ class Viessmann(SmartPlugin):
         self._application_timer = {}                                        # Dict of application timer with command codes and values
         self._timer_cmds = []                                               # List of command codes for timer
         self._viess_timer_dict = {}
-        self._last_values = {}              
+        self._last_values = {}
         self._balist_item = None                                # list of last value per command code
         self._lock = threading.Lock()
         self._initread = False
@@ -383,6 +382,8 @@ class Viessmann(SmartPlugin):
         :type addr: str
         :return: Value if read is successful, None otherwise
         '''
+        addr = addr.lower()
+
         commandname = self._commandname_by_commandcode(addr)
         if commandname is None:
             self.logger.debug(f'Address {addr} not defined in commandset, aborting')
@@ -420,17 +421,19 @@ class Viessmann(SmartPlugin):
         '''
         # as we have no reference whatever concerning the supplied data, we do a few sanity checks...
 
+        addr = addr.lower()
+
         if len(addr) != 4:              # addresses are 2 bytes
             self.logger.warning(f'temp address: address not 4 digits long: {addr}')
             return None
 
         for c in addr:                  # addresses are hex strings
-            if c not in '0123456789abcdefABCDEF':
+            if c not in '0123456789abcdef':
                 self.logger.warning(f'temp address: address digit "{c}" is not hex char')
                 return None
 
-        if length < 1 or length > 8:          # empiritistical choice
-            self.logger.warning(f'temp address: len is not > 0 and < 9: {len}')
+        if length < 1 or length > 32:          # empiritistical choice
+            self.logger.warning(f'temp address: len is not > 0 and < 33: {len}')
             return None
 
         if unit not in self._unitset:   # units need to be predefined
@@ -454,6 +457,34 @@ class Viessmann(SmartPlugin):
             del self._commandset['temp_cmd']
 
         return res
+
+    def write_addr(self, addr, value):
+        '''
+        Tries to write a data point indepently of item config
+
+        :param addr: data point addr (2 byte hex address)
+        :type addr: str
+        :param value: value to write
+        :return: Value if read is successful, None otherwise
+        '''
+        addr = addr.lower()
+
+        commandname = self._commandname_by_commandcode(addr)
+        if commandname is None:
+            self.logger.debug(f'Address {addr} not defined in commandset, aborting')
+            return None
+
+        self.logger.debug(f'Attempting to write address {addr} with value {value} for command {commandname}')
+
+        (packet, responselen) = self._build_command_packet(commandname, value)
+        if packet is None:
+            return None
+
+        response_packet = self._send_command_packet(packet, responselen)
+        if response_packet is None:
+            return None
+
+        return self._parse_response(response_packet, commandname)
 
 #
 # initialization methods
@@ -807,11 +838,8 @@ class Viessmann(SmartPlugin):
                     if len(chunk) != 0:
                         replies[addr].extend(chunk)
                     else:
-                        self.logger.error('Received 0 bytes chunk - this probably is a communication error, possibly a wrong datapoint address?')
+                        self.logger.error('Received 0 bytes chunk from {addr} - this probably is a communication error, possibly a wrong datapoint address?')
                         return
-                except socket.timeout:
-                    raise Exception('Error receiving response: time-out')
-                    return
                 except IOError as io:
                     raise IOError(f'IO Error: {io}')
                     return
@@ -920,38 +948,31 @@ class Viessmann(SmartPlugin):
 
                 # receive response
                 response_packet = bytearray()
-                try:
-                    self.logger.debug(f'Trying to receive {packetlen_response} bytes of the response')
-                    chunk = self._read_bytes(packetlen_response)
+                self.logger.debug(f'Trying to receive {packetlen_response} bytes of the response')
+                chunk = self._read_bytes(packetlen_response)
 
-                    if self._protocol == 'P300':
-                        self.logger.debug(f'Received {len(chunk)} bytes chunk of response as hexstring {self._bytes2hexstring(chunk)} and as bytes {chunk}')
-                        if len(chunk) != 0:
-                            if chunk[:1] == self._int2bytes(self._controlset['Error'], 1):
-                                self.logger.error(f'Interface returned error! response was: {chunk}')
-                            elif len(chunk) == 1 and chunk[:1] == self._int2bytes(self._controlset['Not_initiated'], 1):
-                                self.logger.error('Received invalid chunk, connection not initialized. Forcing re-initialize...')
-                                self._initialized = False
-                            elif chunk[:1] != self._int2bytes(self._controlset['Acknowledge'], 1):
-                                self.logger.error(f'Received invalid chunk, not starting with ACK! response was: {chunk}')
-                            else:
-                                response_packet.extend(chunk)
-                                return response_packet
+                if self._protocol == 'P300':
+                    self.logger.debug(f'Received {len(chunk)} bytes chunk of response as hexstring {self._bytes2hexstring(chunk)} and as bytes {chunk}')
+                    if len(chunk) != 0:
+                        if chunk[:1] == self._int2bytes(self._controlset['Error'], 1):
+                            self.logger.error(f'Interface returned error! response was: {chunk}')
+                        elif len(chunk) == 1 and chunk[:1] == self._int2bytes(self._controlset['Not_initiated'], 1):
+                            self.logger.error('Received invalid chunk, connection not initialized. Forcing re-initialize...')
+                            self._initialized = False
+                        elif chunk[:1] != self._int2bytes(self._controlset['Acknowledge'], 1):
+                            self.logger.error(f'Received invalid chunk, not starting with ACK! response was: {chunk}')
                         else:
-                            self.logger.error(f'Received 0 bytes chunk - ignoring response_packet! chunk was: {chunk}')
-                    elif self._protocol == 'KW':
-                        self.logger.debug(f'Received {len(chunk)} bytes chunk of response as hexstring {self._bytes2hexstring(chunk)} and as bytes {chunk}')
-                        if len(chunk) != 0:
                             response_packet.extend(chunk)
                             return response_packet
-                        else:
-                            self.logger.error('Received 0 bytes chunk - this probably is a communication error, possibly a wrong datapoint address?')
-                except socket.timeout:
-                    raise Exception('Error receiving response: time-out')
-                except IOError as io:
-                    raise IOError(f'IO Error: {e}')
-                except Exception as e:
-                    raise Exception(f'Error receiving response: {e}')
+                    else:
+                        self.logger.error(f'Received 0 bytes chunk - ignoring response_packet! chunk was: {chunk}')
+                elif self._protocol == 'KW':
+                    self.logger.debug(f'Received {len(chunk)} bytes chunk of response as hexstring {self._bytes2hexstring(chunk)} and as bytes {chunk}')
+                    if len(chunk) != 0:
+                        response_packet.extend(chunk)
+                        return response_packet
+                    else:
+                        self.logger.error('Received 0 bytes chunk - this probably is a communication error, possibly a wrong datapoint address?')
             else:
                 raise Exception('Interface not initialized!')
         except IOError as io:
@@ -1144,6 +1165,12 @@ class Viessmann(SmartPlugin):
                 max_allowed_value = None
         except KeyError:
             self.logger.error(f'Error in command configuration {commandconf}, aborting')
+            return None
+
+        # unit HEX = hex values as string is only for read requests (debugging). Don't even try...
+        if commandunit == 'HEX':
+
+            self.logger.error(f'Error in command configuration {commandconf}: unit HEX is not writable, aborting')
             return None
 
         if commandunit == 'BA':
@@ -1400,26 +1427,19 @@ class Viessmann(SmartPlugin):
 
             # start value decode
             if commandunit == 'CT':
-                rawdatastring = rawdatabytes.hex()
-                timer = self._decode_timer(rawdatastring)
+                timer = self._decode_timer(rawdatabytes.hex())
                 # fill list
                 timer = [{'An': on_time, 'Aus': off_time}
                          for on_time, off_time in zip(timer, timer)]
                 value = timer
                 self.logger.debug(f'Matched command {commandname} and read transformed timer {value} and byte length {commandvaluebytes}')
             elif commandunit == 'TI':
-                rawdatastring = rawdatabytes.hex()
-                rawdata = bytearray()
-                rawdata.extend(map(ord, rawdatastring))
                 # decode datetime
-                value = datetime.strptime(rawdata.decode(), '%Y%m%d%W%H%M%S').isoformat()
+                value = datetime.strptime(rawdatabytes.hex(), '%Y%m%d%W%H%M%S').isoformat()
                 self.logger.debug(f'Matched command {commandname} and read transformed datetime {value} and byte length {commandvaluebytes}')
             elif commandunit == 'DA':
-                rawdatastring = rawdatabytes.hex()
-                rawdata = bytearray()
-                rawdata.extend(map(ord, rawdatastring))
                 # decode date
-                value = datetime.strptime(rawdata.decode(), '%Y%m%d%W%H%M%S').date().isoformat()
+                value = datetime.strptime(rawdatabytes.hex(), '%Y%m%d%W%H%M%S').date().isoformat()
                 self.logger.debug(f'Matched command {commandname} and read transformed datetime {value} and byte length {commandvaluebytes}')
             elif commandunit == 'ES':
                 # erstes Byte = Fehlercode; folgenden 8 Byte = Systemzeit
@@ -1446,6 +1466,11 @@ class Viessmann(SmartPlugin):
                 serialnumberbytes = rawdatabytes[:7]
                 value = self._serialnumber_decode(serialnumberbytes)
                 self.logger.debug(f'Matched command {commandname} and read transformed device type {value} (raw value was {serialnumberbytes}) and byte length {commandvaluebytes}')
+            elif commandunit == 'HEX':
+                # hex string for debugging purposes
+                hexstr = rawdatabytes.hex()
+                value = ' '.join([hexstr[i:i + 2] for i in range(0, len(hexstr), 2)])
+                self.logger.debug(f'Read hex bytes {value}')
             else:
                 rawvalue = self._bytes2int(rawdatabytes, commandsigned)
                 value = self._value_transform_read(rawvalue, valuetransform)
@@ -1803,7 +1828,7 @@ class Viessmann(SmartPlugin):
         :return: name of matching command or None if not found
         '''
         for commandname in self._commandset.keys():
-            if self._commandset[commandname]['addr'].lower() == commandcode:
+            if self._commandset[commandname]['addr'].lower() == commandcode.lower():
                 return commandname
         return None
 
